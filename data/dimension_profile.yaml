@@ -1,0 +1,46 @@
+enabled:
+- citation
+- research_type
+- research_question
+- why_important
+- framing
+- key_argument
+- theoretical_lenses
+- hypotheses
+- key_variables
+- context
+- unit_of_analysis
+- sampling_strategy
+- sample
+- sample_type
+- data_sources
+- measures
+- statistical_models
+- endogeneity
+- findings
+- contribution
+- limitations
+- so_what
+- most_interesting
+instructions:
+  key_argument: "Extract the key theoretical arguments of the focal paper.\n\nAn argument\
+    \ counts as key only if it belongs to the paper's conceptual\nworld: it defines\
+    \ or refines a core construct, specifies the mechanism\nlinking constructs, or\
+    \ states the causal logic by which one concept\nshapes another. Empirical results,\
+    \ hypothesis tests, and data patterns\nare not arguments — treat them as illustrations\
+    \ of the theory, never\nas the theory itself.\n\nFor each argument, provide:\n\
+    \n1. **Quotation.** At least one exact, page-cited quotation from the\n   focal\
+    \ paper. Prefer the abstract, introduction, theory development,\n   or concluding\
+    \ theoretical claims. Quote the results section only\n   when the sentence states\
+    \ a theoretical claim rather than reports\n   a finding.\n\n2. **Rephrasings**\
+    \ — clearly labeled, never inside quotation marks:\n   - *Academic paraphrase:*\
+    \ a close restatement in scholarly language.\n   - *Plain-language version:* one\
+    \ or two sentences a non-specialist\n     can follow.\n   - *Causal formulation:*\
+    \ where the paper supports it, the argument\n     as a mechanism — X → Y via M\
+    \ — naming the core concept and its\n     causal role.\n\nSelection discipline:\n\
+    - Priority order: construct definitions → mechanisms → causal\n  propositions\
+    \ → boundary conditions.\n- Exclude: \"we find that…\" statements, effect sizes,\
+    \ significance\n  levels, sample and method descriptions.\n- If a sentence mixes\
+    \ theory and evidence, extract only the\n  theoretical clause."
+backend: external
+parallel_sessions: 50
