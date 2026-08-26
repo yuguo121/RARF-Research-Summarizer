@@ -412,6 +412,18 @@ def _backend_status(pipeline: Pipeline, profile: dict | None = None) -> dict:
     }
 
 
+def _json_value(row: dict | None) -> object:
+    if not row:
+        return None
+    raw = row.get("generated_json")
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
 def _overview_payload(pipeline: Pipeline) -> dict:
     profile = load_profile(pipeline.root)
     schema = schema_from_profile(pipeline.schema, profile)
@@ -426,6 +438,7 @@ def _overview_payload(pipeline: Pipeline) -> dict:
                 "status": (row or {}).get("status"),
                 "confidence": (row or {}).get("confidence"),
                 "source": (row or {}).get("source"),
+                "value": _json_value(row),
             }
         rows.append(
             {
@@ -435,10 +448,17 @@ def _overview_payload(pipeline: Pipeline) -> dict:
                 "scan_id": paper.get("scan_id"),
                 "extracted_at": paper.get("extracted_at"),
                 "meta_source": paper.get("meta_source"),
+                "year": paper.get("year"),
+                "publication": paper.get("publication"),
+                "authors": paper.get("authors"),
+                "folder": paper.get("folder"),
                 "cells": cells,
             }
         )
-    return {"fields": schema.as_dict(), "rows": rows}
+    years = sorted({str(row.get("year")) for row in rows if row.get("year")}, reverse=True)
+    publications = sorted({str(row.get("publication")) for row in rows if row.get("publication")})
+    statuses = sorted({str(row.get("status")) for row in rows if row.get("status")})
+    return {"fields": schema.as_dict(), "rows": rows, "facets": {"years": years, "publications": publications, "statuses": statuses}}
 
 
 def _browse(pipeline: Pipeline, raw: str) -> dict:
