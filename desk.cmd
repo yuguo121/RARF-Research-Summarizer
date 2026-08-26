@@ -1,8 +1,11 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if exist .venv\Scripts\python.exe (
-  ".venv\Scripts\python.exe" -m rarf_summarizer.desk %*
-) else (
-  python -m rarf_summarizer.desk %*
+set "PY=.venv\Scripts\python.exe"
+if not exist "%PY%" set "PY=python"
+"%PY%" -m rarf_summarizer.desk %*
+if errorlevel 1 (
+  echo.
+  echo RARF Desk exited with an error. See messages above.
+  pause
 )

@@ -521,7 +521,7 @@ class ExternalChatBackend:
             url,
             data=payload,
             headers={
-                "Authorization": f"Bearer {self.api_key}",
+                **({"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}),
                 "Content-Type": "application/json",
             },
             method="POST",
@@ -555,6 +555,11 @@ class ExternalChatBackend:
         )
 
 
+def _is_local_base(base_url: str) -> bool:
+    host = base_url.casefold()
+    return any(token in host for token in ("localhost", "127.0.0.1", "0.0.0.0", "::1"))
+
+
 def make_backend(settings: dict[str, Any], *, name: str | None = None, injected=None):
     if injected is not None:
         return injected
@@ -571,11 +576,12 @@ def make_backend(settings: dict[str, Any], *, name: str | None = None, injected=
     if kind == "external":
         env_name = str(ext.get("api_key_env") or "EXTERNAL_API_KEY")
         api_key = os.environ.get(env_name) or os.environ.get("EXTERNAL_API_KEY")
-        if not api_key:
-            raise AgentStartupError(f"{env_name} is not set")
-        if not str(ext.get("base_url") or "").strip():
+        base_url = str(ext.get("base_url") or "").strip()
+        if not base_url:
             raise AgentStartupError("external.base_url is not set")
-        backend = ExternalChatBackend(merged, api_key)
+        if not api_key and not _is_local_base(base_url):
+            raise AgentStartupError(f"{env_name} is not set")
+        backend = ExternalChatBackend(merged, api_key or "")
         backend.resolve_model()
         return backend
     api_key = os.environ.get("CURSOR_API_KEY")

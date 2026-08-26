@@ -377,9 +377,10 @@ def _backend_status(pipeline: Pipeline, profile: dict | None = None) -> dict:
     has_api_key = bool(os.environ.get("CURSOR_API_KEY"))
     has_external_key = bool(os.environ.get(env_name) or os.environ.get("EXTERNAL_API_KEY"))
     if backend == "external":
-        can_summarize = bool(has_external_key and base_url)
+        local_host = any(token in base_url.casefold() for token in ("localhost", "127.0.0.1", "0.0.0.0", "::1"))
+        can_summarize = bool(base_url) and (has_external_key or local_host)
         missing = []
-        if not has_external_key:
+        if not has_external_key and not local_host:
             missing.append(env_name)
         if not base_url:
             missing.append("external.base_url")
