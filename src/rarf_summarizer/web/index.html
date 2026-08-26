@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RARF Desk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f6f5f1;
+      --surface: #ffffff;
+      --surface-2: #faf9f6;
+      --ink: #1a1a18;
+      --ink-2: #3d3d3a;
+      --muted: #8a8780;
+      --border: #e5e2da;
+      --border-strong: #d4d0c6;
+      --accent: #2d6a5a;
+      --accent-soft: #e8f2ef;
+      --accent-hover: #245748;
+      --danger: #b3402a;
+      --danger-soft: #fdf0ec;
+      --gold: #a0782a;
+      --gold-soft: #faf5e8;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
+      --shadow-lg: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: Inter, -apple-system, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Top bar ─────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .brand h1 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .brand span {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+    }
+    .status-pill .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--gold);
+    }
+    .status-pill.ok .dot { background: var(--accent); }
+    .status-pill.ok { background: var(--accent-soft); border-color: #c8ddd6; color: var(--accent); }
+
+    /* ── Buttons ─────────────────────────────── */
+    button, .btn {
+      font-family: Inter, sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      color: var(--ink-2);
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    button:hover:not(:disabled) { background: var(--surface-2); border-color: var(--muted); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+    button.danger-outline {
+      color: var(--danger);
+      border-color: #e0b8ad;
+    }
+    button.danger-outline:hover:not(:disabled) { background: var(--danger-soft); }
+    button.ghost {
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+    }
+    button.ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
+    button.sm { padding: 4px 10px; font-size: 12px; }
+
+    /* ── Layout ──────────────────────────────── */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 1.15fr;
+      gap: 16px;
+      padding: 16px 24px;
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-header h2 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .card-body {
+      flex: 1;
+      overflow: auto;
+      padding: 0;
+    }
+    .card-footer {
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* ── File browser ────────────────────────── */
+    .shortcuts {
+      display: flex;
+      gap: 6px;
+      padding: 10px 18px 0;
+      flex-wrap: wrap;
+    }
+    .shortcuts button {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border-color: var(--border);
+    }
+    .crumbs {
+      padding: 8px 18px;
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      word-break: break-all;
+    }
+    .crumbs button {
+      border: none;
+      background: none;
+      padding: 0;
+      font-size: 12px;
+      color: var(--accent);
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .file-list { padding: 0 8px 8px; }
+    .file-row {
+      display: grid;
+      grid-template-columns: 24px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .file-row:hover { background: var(--surface-2); }
+    .file-row .fname {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+    .file-row .fkind {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .selected-bar {
+      padding: 10px 18px;
+      border-top: 1px solid var(--border);
+      background: var(--surface-2);
+      max-height: 120px;
+      overflow: auto;
+    }
+    .selected-bar b { font-size: 13px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin: 4px 6px 0 0;
+      padding: 3px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 12px;
+    }
+    .pill button {
+      border: none;
+      background: none;
+      padding: 0;
+      color: var(--danger);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    /* ── Dimensions panel ────────────────────── */
+    .presets {
+      display: flex;
+      gap: 6px;
+      padding: 10px 18px;
+      flex-wrap: wrap;
+    }
+    .dim-list { padding: 0 8px 8px; }
+    .dim-item {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
+    }
+    .dim-item:last-child { border-bottom: none; }
+    .dim-head {
+      display: grid;
+      grid-template-columns: 20px 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .dim-head label {
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .badge {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .badge.theory { color: var(--accent); border-color: #c8ddd6; background: var(--accent-soft); }
+    .badge.method { color: var(--gold); border-color: #e8dcc0; background: var(--gold-soft); }
+    .dim-prompt { display: none; padding-top: 8px; }
+    .dim-item.open .dim-prompt { display: block; }
+    textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      font-family: Inter, sans-serif;
+      font-size: 13px;
+      color: var(--ink);
+      resize: vertical;
+      line-height: 1.5;
+    }
+    textarea:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+      border-color: var(--accent);
+    }
+    .log-box {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11.5px;
+      background: #1e1e1c;
+      color: #d4d0c6;
+      margin: 0 18px 14px;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      height: 110px;
+      overflow: auto;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      padding: 0 18px 6px;
+    }
+
+    /* ── Summary grid ────────────────────────── */
+    .summary-section {
+      padding: 0 24px 24px;
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+    .summary-card {
+      min-height: 240px;
+      max-height: 480px;
+    }
+    .overview-scroll {
+      overflow: auto;
+      flex: 1;
+      padding: 0 8px 8px;
+    }
+    table.overview {
+      border-collapse: collapse;
+      min-width: 100%;
+      font-size: 12.5px;
+    }
+    table.overview th, table.overview td {
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      vertical-align: top;
+      max-width: 200px;
+    }
+    table.overview th {
+      position: sticky;
+      top: 0;
+      background: var(--surface-2);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      z-index: 2;
+    }
+    table.overview td.paper-cell {
+      position: sticky;
+      left: 0;
+      background: var(--surface);
+      min-width: 140px;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    table.overview td.cell {
+      cursor: pointer;
+      white-space: pre-wrap;
+      max-height: 64px;
+      overflow: hidden;
+      transition: background 0.1s;
+    }
+    table.overview td.cell:hover { background: var(--accent-soft); }
+    table.overview td.empty { color: var(--muted); font-style: italic; }
+
+    /* ── Drawer ──────────────────────────────── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.3);
+      backdrop-filter: blur(3px);
+      z-index: 50;
+      display: none;
+    }
+    .overlay.open { display: block; }
+    .drawer {
+      position: fixed;
+      top: 0; right: 0;
+      width: min(480px, 100vw);
+      height: 100vh;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      box-shadow: var(--shadow-lg);
+      z-index: 51;
+      display: none;
+      flex-direction: column;
+      padding: 24px;
+      overflow-y: auto;
+    }
+    .drawer.open { display: flex; }
+    .drawer h3 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .drawer .meta-line {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .drawer label {
+      display: block;
+      margin-top: 14px;
+      margin-bottom: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-2);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .drawer textarea { min-height: 80px; }
+    .drawer .grow { flex: 1; min-height: 120px; }
+    .drawer .actions {
+      display: flex;
+      gap: 8px;
+      padding-top: 16px;
+      margin-top: auto;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Settings modal ──────────────────────── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(4px);
+      z-index: 60;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: var(--shadow-lg);
+      width: min(520px, 92vw);
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 28px;
+    }
+    .modal h2 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .modal .sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .chip-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .mode-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .mode-card {
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .mode-card:hover { border-color: var(--muted); }
+    .mode-card.selected {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .mode-card .mode-name {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+    .mode-card .mode-desc {
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+    .form-group { margin-bottom: 14px; }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-2);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      font-family: Inter, sans-serif;
+      font-size: 13px;
+      color: var(--ink);
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+      border-color: var(--accent);
+    }
+    .form-group .help {
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .settings-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .settings-btn svg { width: 14px; height: 14px; }
+
+    /* ── Responsive ──────────────────────────── */
+    @media (max-width: 960px) {
+      .main { grid-template-columns: 1fr; }
+      .topbar { flex-direction: column; gap: 8px; align-items: flex-start; }
+      .topbar-right { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="brand">
+      <h1>RARF Desk</h1>
+      <span>Research Article Review Form</span>
+    </div>
+    <div class="topbar-right">
+      <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">检查中…</span></span>
+      <button class="settings-btn" id="settingsBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        设置
+      </button>
+    </div>
+  </div>
+
+  <!-- Main two-column -->
+  <div class="main">
+    <!-- File browser -->
+    <div class="card">
+      <div class="card-header"><h2>文献柜</h2></div>
+      <div class="shortcuts" id="shortcuts"></div>
+      <div class="crumbs" id="crumbs"></div>
+      <div class="hint">点文件夹进入；勾选 PDF，或把整个文件夹加入清单。</div>
+      <div class="card-body file-list" id="listing"></div>
+      <div class="selected-bar">
+        <b>已选</b> <span id="selectedCount">0 项</span>
+        <div id="selectedList"></div>
+      </div>
+    </div>
+
+    <!-- Dimensions -->
+    <div class="card">
+      <div class="card-header"><h2>维度与提问词</h2></div>
+      <div class="presets">
+        <button type="button" class="sm" data-preset="all">全选</button>
+        <button type="button" class="sm" data-preset="none">全不选</button>
+        <button type="button" class="sm" data-preset="theory">只要理论</button>
+        <button type="button" class="sm" data-preset="method">只要方法</button>
+        <button type="button" class="sm" id="saveProfile">保存提问词</button>
+      </div>
+      <div class="card-body dim-list" id="dims"></div>
+      <div class="card-footer">
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="force" /> 强制重跑
+        </label>
+        <button type="button" id="previewBtn">清点 PDF</button>
+        <button type="button" id="extractBtn">只抽取文本</button>
+        <button type="button" class="primary" id="runBtn">抽取并总结</button>
+        <button type="button" id="exportBtn">导出 Excel</button>
+        <button type="button" class="ghost" id="openBtn">打开结果</button>
+      </div>
+      <div class="log-box" id="log">待命。选择文件夹或 PDF，勾选维度，需要时改提问词。</div>
+    </div>
+  </div>
+
+  <!-- Summary grid -->
+  <div class="summary-section">
+    <div class="card summary-card">
+      <div class="card-header">
+        <h2>Summary</h2>
+        <button type="button" class="sm" id="refreshOverview">刷新格子</button>
+      </div>
+      <div class="hint">点击格子可改稿或按提问词重跑并替换该格。</div>
+      <div class="overview-scroll" id="overview"><div class="hint" style="padding:18px">尚无抽取结果。</div></div>
+    </div>
+  </div>
+
+  <!-- Cell drawer -->
+  <div class="overlay" id="drawerOverlay"></div>
+  <aside class="drawer" id="drawer">
+    <h3 id="drawerTitle">格子</h3>
+    <div class="meta-line" id="drawerMeta"></div>
+    <label>当前文本</label>
+    <textarea id="drawerText" class="grow"></textarea>
+    <label>提问词</label>
+    <textarea id="drawerInstruction"></textarea>
+    <label>补充说明</label>
+    <textarea id="drawerExtra" placeholder="可选：这次重跑要特别注意什么"></textarea>
+    <div class="actions">
+      <button type="button" class="primary" id="drawerSave">保存人工稿</button>
+      <button type="button" id="drawerRerun">按此提问词重跑并替换</button>
+      <button type="button" class="ghost" id="drawerClose">关闭</button>
+    </div>
+  </aside>
+
+  <!-- Settings modal -->
+  <div class="modal-overlay" id="settingsOverlay">
+    <div class="modal">
+      <h2>模型设置</h2>
+      <p class="sub">选择后端并填入 API key。保存在本地 <code>.env</code>，不会上传。</p>
+      <div class="mode-cards">
+        <div class="mode-card" id="modeLocal" data-mode="local">
+          <div class="mode-name">Local Cursor Agent</div>
+          <div class="mode-desc">使用本机 Cursor SDK（默认）</div>
+        </div>
+        <div class="mode-card" id="modeExternal" data-mode="external">
+          <div class="mode-name">External API</div>
+          <div class="mode-desc">DeepSeek（Flash / Pro）</div>
+        </div>
+      </div>
+      <div class="form-group" id="fgCursorKey">
+        <label for="inputCursorKey">CURSOR_API_KEY</label>
+        <input type="password" id="inputCursorKey" placeholder="cursor_…" autocomplete="off" />
+        <div class="help">Local 模式需要。已保存时留空即可。</div>
+      </div>
+      <div class="form-group" id="fgExtKey" style="display:none">
+        <label for="inputExtKey">DeepSeek API Key</label>
+        <input type="password" id="inputExtKey" placeholder="sk-…" autocomplete="off" />
+        <div class="help">在 platform.deepseek.com 申请。已保存时留空即可。</div>
+      </div>
+      <div class="form-group" id="fgModelPick" style="display:none">
+        <label>DeepSeek 模型</label>
+        <div class="mode-cards" id="modelCards">
+          <div class="mode-card" id="modelFlash" data-model="deepseek-v4-flash">
+            <div class="mode-name">Flash</div>
+            <div class="mode-desc">deepseek-v4-flash · 更快更便宜</div>
+          </div>
+          <div class="mode-card" id="modelPro" data-model="deepseek-v4-pro">
+            <div class="mode-name">Pro</div>
+            <div class="mode-desc">deepseek-v4-pro · 更强推理</div>
+          </div>
+        </div>
+      </div>
+      <div class="form-group" id="fgParallel" style="display:none">
+        <label>并行会话数</label>
+        <div class="chip-row" id="parallelCards">
+          <div class="mode-card" data-parallel="5"><div class="mode-name">&lt;5</div></div>
+          <div class="mode-card" data-parallel="10"><div class="mode-name">&lt;10</div></div>
+          <div class="mode-card" data-parallel="50"><div class="mode-name">&lt;50</div></div>
+          <div class="mode-card" data-parallel="100"><div class="mode-name">&lt;100</div></div>
+        </div>
+        <div class="help">同时进行的总结会话上限。仅 External / DeepSeek 生效。</div>
+      </div>
+      <div class="form-group" id="fgBaseUrl" style="display:none">
+        <label for="inputBaseUrl">Base URL</label>
+        <input type="text" id="inputBaseUrl" placeholder="https://api.deepseek.com" />
+        <div class="help">DeepSeek OpenAI 兼容地址，默认 https://api.deepseek.com</div>
+      </div>
+      <input type="hidden" id="inputModelId" />
+      <div class="modal-actions">
+        <button type="button" class="ghost" id="settingsCancel">取消</button>
+        <button type="button" class="primary" id="settingsSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      fields: [],
+      profile: { enabled: [], instructions: {} },
+      cwd: "",
+      listing: { dirs: [], files: [], parent: null, path: "" },
+      selected: new Map(),
+      defaults: {},
+      canSummarize: false,
+      busy: false,
+      drawer: null,
+      overview: { fields: [], rows: [] },
+      backend: "local",
+      extBaseUrl: "",
+      extModelId: "",
+      extModelLabel: "",
+      parallelSessions: 5,
+    };
+    const DEEPSEEK_DEFAULT_URL = "https://api.deepseek.com";
+    const DEEPSEEK_FLASH = "deepseek-v4-flash";
+    const DEEPSEEK_PRO = "deepseek-v4-pro";
+    const $ = (id) => document.getElementById(id);
+
+    async function getJSON(url) {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
+    }
+    async function postJSON(url, body) {
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
+    }
+
+    function enabledIds() { return [...document.querySelectorAll(".dim-on:checked")].map(el => el.value); }
+    function instructionMap() {
+      const out = {};
+      for (const f of state.fields) {
+        const box = document.querySelector(`textarea[data-id="${f.id}"]`);
+        if (!box) continue;
+        const v = box.value.trim();
+        if (v && v !== (state.defaults[f.id] || "").trim()) out[f.id] = v;
+      }
+      return out;
+    }
+    function selectedPaths() { return [...state.selected.keys()]; }
+
+    /* ── Status ── */
+    function applyStatus(data) {
+      state.canSummarize = !!data.can_summarize;
+      state.backend = data.backend || "local";
+      state.extBaseUrl = data.external_base_url || "";
+      state.extModelId = data.external_model_id || "";
+      state.extModelLabel = data.external_model_label || "";
+      state.parallelSessions = data.parallel_sessions || 5;
+      const pill = $("statusPill");
+      const ok = state.canSummarize;
+      pill.className = "status-pill" + (ok ? " ok" : "");
+      if (data.backend_message) $("statusText").textContent = data.backend_message;
+      else if (state.backend === "external") {
+        const model = state.extModelLabel || state.extModelId || "DeepSeek";
+        $("statusText").textContent = data.has_external_key ? `${model} · 并行<${state.parallelSessions}` : "缺 DeepSeek API key";
+      }
+      else $("statusText").textContent = data.has_api_key ? "CURSOR_API_KEY 已加载" : "未找到 API key";
+      setBusy(state.busy);
+    }
+
+    /* ── Settings modal ── */
+    let modalMode = "local";
+    let modalModel = DEEPSEEK_FLASH;
+    let modalParallel = 5;
+    function setModalModel(id) {
+      modalModel = id === DEEPSEEK_PRO ? DEEPSEEK_PRO : DEEPSEEK_FLASH;
+      $("inputModelId").value = modalModel;
+      $("modelFlash").classList.toggle("selected", modalModel === DEEPSEEK_FLASH);
+      $("modelPro").classList.toggle("selected", modalModel === DEEPSEEK_PRO);
+    }
+    function setModalParallel(cap) {
+      const allowed = [5, 10, 50, 100];
+      modalParallel = allowed.includes(Number(cap)) ? Number(cap) : 5;
+      document.querySelectorAll("#parallelCards .mode-card").forEach((el) => {
+        el.classList.toggle("selected", Number(el.dataset.parallel) === modalParallel);
+      });
+    }
+    function openSettings() {
+      modalMode = state.backend;
+      setModalModel(state.extModelId || DEEPSEEK_FLASH);
+      setModalParallel(state.parallelSessions || 5);
+      $("inputCursorKey").value = "";
+      $("inputExtKey").value = "";
+      $("inputBaseUrl").value = state.extBaseUrl || DEEPSEEK_DEFAULT_URL;
+      syncModal();
+      $("settingsOverlay").classList.add("open");
+    }
+    function closeSettings() { $("settingsOverlay").classList.remove("open"); }
+    function syncModal() {
+      $("modeLocal").classList.toggle("selected", modalMode === "local");
+      $("modeExternal").classList.toggle("selected", modalMode === "external");
+      $("fgCursorKey").style.display = modalMode === "local" ? "" : "none";
+      $("fgExtKey").style.display = modalMode === "external" ? "" : "none";
+      $("fgBaseUrl").style.display = modalMode === "external" ? "" : "none";
+      $("fgModelPick").style.display = modalMode === "external" ? "" : "none";
+      $("fgParallel").style.display = modalMode === "external" ? "" : "none";
+      if (modalMode === "external" && !$("inputBaseUrl").value.trim()) {
+        $("inputBaseUrl").value = DEEPSEEK_DEFAULT_URL;
+      }
+    }
+    $("modeLocal").onclick = () => { modalMode = "local"; syncModal(); };
+    $("modeExternal").onclick = () => { modalMode = "external"; syncModal(); };
+    $("modelFlash").onclick = () => setModalModel(DEEPSEEK_FLASH);
+    $("modelPro").onclick = () => setModalModel(DEEPSEEK_PRO);
+    document.querySelectorAll("#parallelCards .mode-card").forEach((el) => {
+      el.onclick = () => setModalParallel(el.dataset.parallel);
+    });
+    $("settingsBtn").onclick = openSettings;
+    $("settingsCancel").onclick = closeSettings;
+    $("settingsOverlay").onclick = (e) => { if (e.target === $("settingsOverlay")) closeSettings(); };
+    $("settingsSave").onclick = async () => {
+      const body = { backend: modalMode };
+      if (modalMode === "local" && $("inputCursorKey").value.trim()) body.api_key = $("inputCursorKey").value.trim();
+      if (modalMode === "external") {
+        if ($("inputExtKey").value.trim()) body.api_key = $("inputExtKey").value.trim();
+        body.base_url = $("inputBaseUrl").value.trim() || DEEPSEEK_DEFAULT_URL;
+        body.model_id = $("inputModelId").value.trim() || DEEPSEEK_FLASH;
+        body.parallel_sessions = modalParallel;
+      }
+      try {
+        const res = await postJSON("/api/settings", body);
+        applyStatus(res.state);
+        closeSettings();
+        log("设置已保存。");
+      } catch (err) { log("保存失败：" + String(err.message || err)); }
+    };
+
+    /* ── File browser ── */
+    function renderSelected() {
+      $("selectedCount").textContent = `${state.selected.size} 项`;
+      $("selectedList").innerHTML = "";
+      for (const [path, item] of state.selected) {
+        const pill = document.createElement("span");
+        pill.className = "pill";
+        pill.innerHTML = `<span>${item.kind === "folder" ? "夹" : "PDF"} ${item.name}</span>`;
+        const x = document.createElement("button");
+        x.type = "button"; x.textContent = "×";
+        x.onclick = () => { state.selected.delete(path); renderSelected(); };
+        pill.appendChild(x);
+        $("selectedList").appendChild(pill);
+      }
+    }
+    function addSelected(path, name, kind) { state.selected.set(path, { path, name, kind }); renderSelected(); }
+
+    function renderListing() {
+      const listing = state.listing;
+      const crumbs = $("crumbs");
+      crumbs.innerHTML = "";
+      if (!listing.path) { crumbs.textContent = "磁盘"; }
+      else {
+        const up = document.createElement("button");
+        up.type = "button"; up.textContent = "上级";
+        up.onclick = () => browse(listing.parent || "drives");
+        crumbs.appendChild(up);
+        crumbs.append(`  ${listing.path}`);
+        const use = document.createElement("button");
+        use.type = "button"; use.textContent = "选用此文件夹";
+        use.onclick = () => addSelected(listing.path, listing.path.split(/[\\/]/).pop(), "folder");
+        crumbs.appendChild(use);
+      }
+      const box = $("listing");
+      box.innerHTML = "";
+      for (const dir of listing.dirs || []) {
+        const row = document.createElement("div");
+        row.className = "file-row";
+        row.innerHTML = `<span></span><span class="fname">${dir.name}</span><span class="fkind">文件夹${dir.pdf_here ? " · " + dir.pdf_here + " PDF" : ""}</span>`;
+        row.onclick = () => browse(dir.path);
+        box.appendChild(row);
+      }
+      for (const file of listing.files || []) {
+        const row = document.createElement("div");
+        row.className = "file-row";
+        const checked = state.selected.has(file.path) ? "checked" : "";
+        row.innerHTML = `<input type="checkbox" ${checked} /><span class="fname">${file.name}</span><span class="fkind">PDF</span>`;
+        const cb = row.querySelector("input");
+        cb.onchange = () => { if (cb.checked) addSelected(file.path, file.name, "file"); else { state.selected.delete(file.path); renderSelected(); } };
+        row.onclick = (e) => { if (e.target.tagName === "INPUT") return; cb.checked = !cb.checked; cb.onchange(); };
+        box.appendChild(row);
+      }
+      if (!(listing.dirs || []).length && !(listing.files || []).length) box.innerHTML = `<div class="hint" style="padding:18px">此目录没有子文件夹或 PDF。</div>`;
+    }
+
+    async function browse(path) {
+      const data = await getJSON("/api/browse?path=" + encodeURIComponent(path || ""));
+      state.cwd = data.path || "";
+      state.listing = data;
+      $("shortcuts").innerHTML = "";
+      for (const item of data.shortcuts || []) {
+        const btn = document.createElement("button");
+        btn.type = "button"; btn.textContent = item.name;
+        btn.onclick = () => browse(item.path);
+        $("shortcuts").appendChild(btn);
+      }
+      renderListing();
+    }
+
+    /* ── Dimensions ── */
+    function renderDims() {
+      const host = $("dims");
+      host.innerHTML = "";
+      const enabled = new Set(state.profile.enabled || state.fields.map(f => f.id));
+      const instructions = state.profile.instructions || {};
+      for (const field of state.fields) {
+        state.defaults[field.id] = field.instruction;
+        const wrap = document.createElement("div");
+        wrap.className = "dim-item";
+        wrap.innerHTML = `
+          <div class="dim-head">
+            <input class="dim-on" type="checkbox" value="${field.id}" ${enabled.has(field.id) ? "checked" : ""} />
+            <label>${field.label}</label>
+            <span class="badge ${field.session}">${field.session}</span>
+            <button type="button" class="sm ghost edit">提问词</button>
+          </div>
+          <div class="dim-prompt">
+            <textarea data-id="${field.id}">${instructions[field.id] || field.instruction}</textarea>
+            <button type="button" class="sm ghost reset">恢复默认</button>
+          </div>`;
+        wrap.querySelector(".edit").onclick = () => wrap.classList.toggle("open");
+        wrap.querySelector(".reset").onclick = () => { wrap.querySelector("textarea").value = field.instruction; };
+        host.appendChild(wrap);
+      }
+    }
+
+    /* ── Log ── */
+    function log(text) { $("log").textContent = text; $("log").scrollTop = $("log").scrollHeight; }
+
+    /* ── Overview grid ── */
+    function clip(text, n) {
+      const v = String(text || "").replace(/\s+/g, " ").trim();
+      return v.length > n ? v.slice(0, n) + "…" : v;
+    }
+    async function loadOverview() {
+      const data = await getJSON("/api/overview");
+      state.overview = data;
+      const host = $("overview");
+      host.innerHTML = "";
+      if (!(data.rows || []).length) { host.innerHTML = `<div class="hint" style="padding:18px">尚无抽取结果。</div>`; return; }
+      const table = document.createElement("table");
+      table.className = "overview";
+      const head = document.createElement("tr");
+      const th0 = document.createElement("th"); th0.textContent = "文献"; head.appendChild(th0);
+      for (const f of data.fields || []) { const th = document.createElement("th"); th.textContent = f.label; th.title = f.id; head.appendChild(th); }
+      table.appendChild(head);
+      for (const row of data.rows) {
+        const tr = document.createElement("tr");
+        const td0 = document.createElement("td"); td0.className = "paper-cell"; td0.textContent = row.title; tr.appendChild(td0);
+        for (const f of data.fields || []) {
+          const td = document.createElement("td");
+          const cell = (row.cells || {})[f.id] || {};
+          td.className = "cell" + (cell.text ? "" : " empty");
+          td.textContent = cell.text ? clip(cell.text, 140) : "空";
+          td.title = cell.text || "";
+          td.onclick = () => openDrawer(row, f, cell);
+          tr.appendChild(td);
+        }
+        table.appendChild(tr);
+      }
+      host.appendChild(table);
+    }
+
+    /* ── Drawer ── */
+    function closeDrawer() { $("drawer").classList.remove("open"); $("drawerOverlay").classList.remove("open"); state.drawer = null; }
+    function openDrawer(row, field, cell) {
+      state.drawer = { paper_id: row.paper_id, field, cell, title: row.title };
+      $("drawerTitle").textContent = field.label;
+      $("drawerMeta").textContent = `${row.title} · ${field.id} · ${cell.source || "none"}`;
+      $("drawerText").value = cell.text || "";
+      const box = document.querySelector(`textarea[data-id="${field.id}"]`);
+      $("drawerInstruction").value = (box && box.value) || field.instruction || "";
+      $("drawerExtra").value = "";
+      $("drawer").classList.add("open");
+      $("drawerOverlay").classList.add("open");
+      setBusy(state.busy);
+    }
+
+    /* ── Job polling ── */
+    async function pollJob() {
+      const data = await getJSON("/api/job");
+      if (data.logs && data.logs.length) log(data.logs.join("\n"));
+      if (data.status === "running") { setTimeout(pollJob, 1200); return; }
+      setBusy(false);
+      if (data.error) log((data.logs || []).join("\n") + "\n错误：" + data.error);
+      else if (data.result) {
+        const extra = data.result.field_ids ? `\n已替换 ${(data.result.field_ids || []).length} 格。` : `\n完成 ${data.result.count || 0} 篇。`;
+        log((data.logs || []).join("\n") + extra);
+      }
+      loadOverview().catch(() => {});
+    }
+
+    function setBusy(on) {
+      state.busy = !!on;
+      ["extractBtn", "exportBtn", "previewBtn", "drawerSave"].forEach(id => { if ($(id)) $(id).disabled = !!on; });
+      if ($("runBtn")) $("runBtn").disabled = !!on || !state.canSummarize;
+      if ($("drawerRerun")) $("drawerRerun").disabled = !!on || !state.canSummarize;
+    }
+
+    /* ── Actions ── */
+    async function run(action) {
+      const paths = selectedPaths();
+      if (!paths.length) return log("请先选择文件夹或 PDF。");
+      if (action !== "extract" && !enabledIds().length) return log("请至少勾选一个维度。");
+      if (action !== "extract" && !state.canSummarize) return log($("statusText").textContent);
+      setBusy(true);
+      try {
+        await postJSON("/api/run", { action, paths, enabled: enabledIds(), instructions: instructionMap(), backend: state.backend, force: $("force").checked, export: action === "run" });
+        log("任务已开始…");
+        pollJob();
+      } catch (err) { setBusy(false); log(String(err.message || err)); }
+    }
+
+    $("previewBtn").onclick = async () => {
+      const paths = selectedPaths();
+      if (!paths.length) return log("请先选择文件夹或 PDF。");
+      const data = await postJSON("/api/preview", { paths });
+      log(`将处理 ${data.count} 个 PDF。\n根目录：${data.root}\n` + data.files.join("\n"));
+    };
+    $("extractBtn").onclick = () => run("extract");
+    $("runBtn").onclick = () => run("run");
+    $("exportBtn").onclick = async () => {
+      await postJSON("/api/profile", { enabled: enabledIds(), instructions: instructionMap(), backend: state.backend });
+      const data = await postJSON("/api/export", {});
+      log("已导出：\n" + data.path);
+    };
+    $("openBtn").onclick = () => postJSON("/api/open", {});
+    $("saveProfile").onclick = async () => {
+      await postJSON("/api/profile", { enabled: enabledIds(), instructions: instructionMap(), backend: state.backend });
+      log("已保存维度选择与提问词。");
+    };
+    $("refreshOverview").onclick = () => loadOverview().catch(err => log(String(err.message || err)));
+    $("drawerClose").onclick = closeDrawer;
+    $("drawerOverlay").onclick = closeDrawer;
+    $("drawerSave").onclick = async () => {
+      if (!state.drawer) return;
+      await postJSON("/api/cell", { paper_id: state.drawer.paper_id, field_id: state.drawer.field.id, text: $("drawerText").value });
+      log("已保存人工稿。");
+      await loadOverview();
+    };
+    $("drawerRerun").onclick = async () => {
+      if (!state.drawer) return;
+      if (!state.canSummarize) return log($("statusText").textContent);
+      const fieldId = state.drawer.field.id;
+      const instruction = $("drawerInstruction").value;
+      const instructions = instructionMap();
+      instructions[fieldId] = instruction;
+      await postJSON("/api/profile", { enabled: enabledIds(), instructions, backend: state.backend });
+      setBusy(true);
+      try {
+        await postJSON("/api/resummarize", { paper_id: state.drawer.paper_id, field_ids: [fieldId], extra_instruction: $("drawerExtra").value, instruction_override: instruction, backend: state.backend });
+        log("格子重跑已开始…");
+        pollJob();
+      } catch (err) { setBusy(false); log(String(err.message || err)); }
+    };
+    document.querySelectorAll("[data-preset]").forEach(btn => {
+      btn.onclick = () => {
+        const preset = btn.dataset.preset;
+        document.querySelectorAll(".dim-on").forEach(box => {
+          const field = state.fields.find(f => f.id === box.value);
+          if (preset === "all") box.checked = true;
+          else if (preset === "none") box.checked = false;
+          else box.checked = field && field.session === preset;
+        });
+      };
+    });
+
+    /* ── Init ── */
+    (async function init() {
+      const data = await getJSON("/api/state");
+      state.fields = data.fields;
+      state.profile = data.profile || { enabled: data.fields.map(f => f.id), instructions: {} };
+      if (!state.profile.enabled) state.profile.enabled = data.fields.map(f => f.id);
+      applyStatus(data);
+      renderDims();
+      await browse(data.default_folder);
+      await loadOverview();
+      const job = await getJSON("/api/job");
+      if (job.status === "running") { setBusy(true); pollJob(); }
+      // Auto-open settings if no key configured
+      if (!data.can_summarize && !data.has_api_key && !data.has_external_key) openSettings();
+    })().catch(err => log(String(err)));
+  </script>
+</body>
+</html>

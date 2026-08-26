@@ -1,0 +1,274 @@
+schema_version: "1.0.0"
+prompt_version: "1.1.0"
+
+status_values:
+  - present
+  - not_reported
+  - not_applicable
+  - unclear
+
+framing_primary_basis:
+  - IV-led
+  - DV-led
+  - theory-led
+  - mixed/other
+
+framing_secondary_style:
+  - theoretical
+  - phenomenological
+  - mixed
+  - not_reported
+
+variable_classes:
+  - DV
+  - IV
+  - moderator
+  - mediator
+  - control
+
+measure_types:
+  - continuous
+  - binary
+  - ordinal
+  - cardinal
+
+sessions:
+  theory:
+    description: Abstract, introduction, theory/literature, discussion, and conclusion.
+    section_keys:
+      - abstract
+      - introduction
+      - theory
+      - discussion
+      - conclusion
+  method:
+    description: Methods, data, measures, analyses, results, robustness/endogeneity, and relevant appendices.
+    section_keys:
+      - methods
+      - results
+      - appendix
+  reconcile:
+    description: Merge theory and method outputs, verify quotes, and link constructs to measures.
+
+fields:
+  - id: citation
+    label: Citation
+    group: identity
+    session: theory
+    value_kind: text
+    instruction: >
+      Produce a complete academic citation (authors, year, title, journal, volume,
+      pages, DOI if available). Prefer the paper's own bibliographic details over
+      filename heuristics.
+
+  - id: research_type
+    label: Type of research
+    group: theory
+    session: theory
+    value_kind: text
+    instruction: >
+      Classify as empirical, theoretical, review, or mixed. If mixed, state the
+      dominant mode. Review/meta-analytic papers are theoretical unless they also
+      estimate a new empirical model.
+
+  - id: research_question
+    label: Research question
+    group: theory
+    session: theory
+    value_kind: text
+    instruction: >
+      State the focal research question(s) or organizing puzzle in one or two
+      sentences, using the paper's own language when possible.
+
+  - id: why_important
+    label: Why important?
+    group: theory
+    session: theory
+    value_kind: text
+    instruction: >
+      Why does the paper argue this question matters for theory, evidence, or practice?
+
+  - id: framing
+    label: Framing
+    group: theory
+    session: theory
+    value_kind: framing
+    instruction: >
+      Classify whether the focal paper is primarily organized around an independent
+      variable (IV-led), a dependent variable (DV-led), theory per se (theory-led),
+      or a mixed/other frame. Also record whether the paper's style is theoretical
+      or phenomenological. Provide a short rationale and page-cited evidence.
+      IV-led: the paper is built around a cause, practice, or treatment (e.g., CEO duality)
+      and traces its consequences. DV-led: the paper is built around an outcome and
+      asks what explains it. theory-led: the paper is organized around a theoretical
+      debate, review, or conceptual synthesis rather than a single causal estimate.
+
+  - id: key_argument
+    label: Key argument
+    group: theory
+    session: theory
+    value_kind: arguments
+    instruction: >
+      Extract one or more key arguments. Each argument MUST include at least one
+      exact, page-cited quotation from the focal paper. Then add clearly labeled
+      rephrasings: a close academic paraphrase, a concise plain-language version,
+      and a causal/logical formulation when the paper supports one. Never place
+      paraphrase inside quotation marks. Prefer quotations from the abstract,
+      introduction, or concluding theoretical claims.
+
+  - id: theoretical_lenses
+    label: Theoretical lens(es)
+    group: theory
+    session: theory
+    value_kind: text
+    instruction: >
+      Name the theoretical lens(es) used (e.g., agency theory, stewardship theory,
+      resource dependence). Note if the paper contrasts multiple lenses.
+
+  - id: hypotheses
+    label: Hypotheses
+    group: theory
+    session: theory
+    value_kind: text
+    instruction: >
+      List numbered hypotheses with their directional prediction. Use not_applicable
+      for purely review/theoretical papers that do not test hypotheses. Use
+      not_reported if the paper is empirical but does not state hypotheses.
+
+  - id: key_variables
+    label: Key variables (or constructs)
+    group: constructs
+    session: theory
+    value_kind: constructs
+    instruction: >
+      Record the conceptual world only: class (DV, IV, moderator, mediator),
+      construct name, and nominal/conceptual definition. Do not copy measurement
+      details here. For review papers, list the core constructs the literature is
+      organized around.
+
+  - id: context
+    label: Context
+    group: method
+    session: method
+    value_kind: text
+    instruction: >
+      Industry, country, time period, or phenomenon context of the evidence.
+      For reviews, describe the literature's typical empirical setting if discussed;
+      otherwise not_applicable.
+
+  - id: unit_of_analysis
+    label: Unit of analysis
+    group: method
+    session: method
+    value_kind: text
+    instruction: >
+      e.g., firm, individual, firm-year, event. not_applicable for non-empirical papers
+      that do not analyze a sample.
+
+  - id: sampling_strategy
+    label: Sampling strategy
+    group: method
+    session: method
+    value_kind: text
+    instruction: >
+      archival, survey, case study, experiment, mixed, or other. not_applicable
+      if the paper is a review/theory piece without a sample.
+
+  - id: sample
+    label: Sample
+    group: method
+    session: method
+    value_kind: text
+    instruction: >
+      Describe the sample (N, years, firms, inclusion rules). not_applicable when
+      there is no empirical sample.
+
+  - id: sample_type
+    label: Sample type
+    group: method
+    session: method
+    value_kind: text
+    instruction: >
+      panel, cross section, time series, qualitative, or not_applicable.
+
+  - id: data_sources
+    label: Data source(s)
+    group: method
+    session: method
+    value_kind: text
+    instruction: >
+      Databases, surveys, archives, or other sources. not_applicable if none.
+
+  - id: measures
+    label: Measures
+    group: constructs
+    session: method
+    value_kind: measures
+    instruction: >
+      Record the empirical world: class, variable name, operationalization,
+      range, and type (continuous, binary, ordinal, or cardinal). Link each measure
+      to a conceptual construct by name. not_applicable for papers without original
+      measures.
+
+  - id: statistical_models
+    label: Statistical model(s)
+    group: method
+    session: method
+    value_kind: text
+    instruction: >
+      e.g., OLS, GLS, Probit, Logit, Fixed-Effects, DID. not_applicable if the paper
+      does not estimate a statistical model.
+
+  - id: endogeneity
+    label: Discussion of endogeneity issues
+    group: method
+    session: method
+    value_kind: text
+    instruction: >
+      yes/no plus methods used (IV, matching, FE, lag, Heckman, etc.). Use
+      not_applicable for non-empirical papers. Use not_reported if empirical but
+      silent on endogeneity.
+
+  - id: findings
+    label: Findings
+    group: method
+    session: method
+    value_kind: text
+    instruction: >
+      Main findings, including nulls that the authors emphasize. For reviews,
+      summarize the literature's conclusions rather than a single estimate.
+
+  - id: contribution
+    label: Contribution
+    group: implications
+    session: theory
+    value_kind: text
+    instruction: >
+      Stated theoretical, empirical, or practical contribution.
+
+  - id: limitations
+    label: Limitations
+    group: implications
+    session: theory
+    value_kind: text
+    instruction: >
+      Author-acknowledged limitations. If none are stated, use not_reported rather
+      than inventing criticisms, unless a limitation is unmistakable from the design.
+
+  - id: so_what
+    label: So what?
+    group: implications
+    session: theory
+    value_kind: text
+    instruction: >
+      What can we tell practitioners about this study? Ground the implication in
+      the paper; do not invent consulting advice.
+
+  - id: most_interesting
+    label: What aspects of the paper do you find most interesting?
+    group: implications
+    session: theory
+    value_kind: text
+    instruction: >
+      Note distinctive theoretical moves, identification strategies, construct
+      treatments, or agenda-setting claims that would matter for a literature review.

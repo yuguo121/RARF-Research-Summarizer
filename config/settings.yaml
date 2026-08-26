@@ -1,0 +1,34 @@
+project_root_relative: true
+default_folder: "C:/Users/HuGoL/OneDrive - HKUST (Guangzhou)/PhD/Zotero/Corporate Governance/Internal"
+sqlite_path: data/rarf.sqlite
+output_path: output/RARF_Overview.xlsx
+work_dir: data/work
+packet_char_budget: 0
+packet_warn_chars: 100000
+stream_timeout_seconds: 720
+wait_timeout_seconds: 90
+skip_reconcile_if_clean: true
+low_text_char_threshold: 80
+model:
+  family: grok-4.6
+  effort: high
+  required_id_substrings:
+    - grok
+    - "4.6"
+  required_label_tokens:
+    - high
+  no_silent_fallback: true
+  backend: local
+external:
+  base_url: https://api.deepseek.com
+  model_id: deepseek-v4-flash
+  api_key_env: EXTERNAL_API_KEY
+  presets:
+    - id: deepseek-v4-flash
+      label: DeepSeek V4 Flash
+    - id: deepseek-v4-pro
+      label: DeepSeek V4 Pro
+  parallel_sessions: 5
+cursor:
+  local: true
+  tools: []
