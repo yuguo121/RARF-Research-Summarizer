@@ -458,7 +458,12 @@ def _overview_payload(pipeline: Pipeline) -> dict:
     years = sorted({str(row.get("year")) for row in rows if row.get("year")}, reverse=True)
     publications = sorted({str(row.get("publication")) for row in rows if row.get("publication")})
     statuses = sorted({str(row.get("status")) for row in rows if row.get("status")})
-    return {"fields": schema.as_dict(), "rows": rows, "facets": {"years": years, "publications": publications, "statuses": statuses}}
+    groups = sorted({str(row.get("folder")) for row in rows if row.get("folder")})
+    return {
+        "fields": schema.as_dict(),
+        "rows": rows,
+        "facets": {"years": years, "publications": publications, "statuses": statuses, "groups": groups},
+    }
 
 
 def _browse(pipeline: Pipeline, raw: str) -> dict:

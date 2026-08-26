@@ -864,6 +864,13 @@
         <select id="filterYear"><option value="">全部年份</option></select>
         <select id="filterPub"><option value="">全部期刊</option></select>
         <select id="filterStatus"><option value="">全部状态</option></select>
+        <select id="filterGroup"><option value="">全部文件夹</option></select>
+        <select id="sortBy">
+          <option value="title">按标题</option>
+          <option value="year">按年份</option>
+          <option value="extracted_at">按抽取时间</option>
+          <option value="status">按状态</option>
+        </select>
         <select id="perPage">
           <option value="10">10 / 页</option>
           <option value="20">20 / 页</option>
@@ -1009,6 +1016,8 @@
       overviewYear: "",
       overviewPub: "",
       overviewStatus: "",
+      overviewGroup: "",
+      overviewSort: "title",
       activeTab: "extract",
     };
     const DEEPSEEK_DEFAULT_URL = "https://api.deepseek.com";
@@ -1253,14 +1262,23 @@
     }
     function _overviewFiltered(rows) {
       const q = state.overviewSearch.trim().casefold();
-      return rows.filter(row => {
+      let out = rows.filter(row => {
         if (state.overviewYear && String(row.year || "") !== state.overviewYear) return false;
         if (state.overviewPub && String(row.publication || "") !== state.overviewPub) return false;
         if (state.overviewStatus && String(row.status || "") !== state.overviewStatus) return false;
+        if (state.overviewGroup && String(row.folder || "") !== state.overviewGroup) return false;
         if (!q) return true;
         const hay = [row.title, row.authors, row.publication, row.paper_id].filter(Boolean).join(" ").casefold();
         return hay.includes(q);
       });
+      const key = state.overviewSort;
+      out.sort((a, b) => {
+        const va = a[key] || "";
+        const vb = b[key] || "";
+        if (key === "year") return String(vb).localeCompare(String(va));
+        return String(va).localeCompare(String(vb));
+      });
+      return out;
     }
 
     function _fillSelect(id, values, current) {
@@ -1277,9 +1295,11 @@
       _fillSelect("filterYear", facets.years || [], state.overviewYear);
       _fillSelect("filterPub", facets.publications || [], state.overviewPub);
       _fillSelect("filterStatus", facets.statuses || [], state.overviewStatus);
+      _fillSelect("filterGroup", facets.groups || [], state.overviewGroup);
       $("filterYear").value = state.overviewYear;
       $("filterPub").value = state.overviewPub;
       $("filterStatus").value = state.overviewStatus;
+      $("filterGroup").value = state.overviewGroup;
 
       const host = $("overview");
       host.innerHTML = "";
@@ -1328,6 +1348,8 @@
     $("filterYear").onchange = () => { state.overviewYear = $("filterYear").value; state.overviewPage = 1; loadOverview(); };
     $("filterPub").onchange = () => { state.overviewPub = $("filterPub").value; state.overviewPage = 1; loadOverview(); };
     $("filterStatus").onchange = () => { state.overviewStatus = $("filterStatus").value; state.overviewPage = 1; loadOverview(); };
+    $("filterGroup").onchange = () => { state.overviewGroup = $("filterGroup").value; state.overviewPage = 1; loadOverview(); };
+    $("sortBy").onchange = () => { state.overviewSort = $("sortBy").value; state.overviewPage = 1; loadOverview(); };
     $("perPage").onchange = () => { state.overviewPerPage = Number($("perPage").value) || 10; state.overviewPage = 1; loadOverview(); };
 
     /* ── Cell focus panel ── */

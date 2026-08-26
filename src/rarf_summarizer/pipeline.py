@@ -20,7 +20,7 @@ from rarf_summarizer.provenance import new_scan_id
 from rarf_summarizer.schema import Schema, load_schema
 from rarf_summarizer.selection import collect_pdfs, id_root_for
 from rarf_summarizer.storage import Store, utc_now
-from rarf_summarizer.summarizer import Summarizer, paper_id_for
+from rarf_summarizer.summarizer import Summarizer, cache_key, paper_id_for
 from rarf_summarizer.zotero_meta import (
     ZoteroMeta,
     fetch_zotero_api,
@@ -269,13 +269,30 @@ class Pipeline:
         try:
             summarizer = self._summarizer(backend, schema)
             jobs: list[tuple[Path, str]] = []
+            skipped: list[str] = []
+            seen_hashes: set[str] = set()
             for pdf in pdfs:
                 if name_contains and name_contains.casefold() not in pdf.name.casefold():
                     continue
                 if limit is not None and len(jobs) >= limit:
                     break
                 paper_id = self.extract_one(pdf, folder)
+                record = self.store.get_paper(paper_id) or {}
+                file_hash = record.get("file_hash") or file_sha256(pdf)
+                if not force and file_hash in seen_hashes:
+                    skipped.append(pdf.name)
+                    print(f"skipping duplicate PDF in this run: {pdf.name}")
+                    continue
+                if not force and record.get("status") == "summarized" and self.store.cached_run(
+                    paper_id, "reconcile", cache_key(file_hash, schema or self.schema, summarizer.backend.resolve_model(), "reconcile")
+                ):
+                    skipped.append(pdf.name)
+                    print(f"skipping already summarized: {pdf.name}")
+                    continue
+                seen_hashes.add(file_hash)
                 jobs.append((pdf, paper_id))
+            if skipped:
+                print(f"skipped {len(skipped)} already-processed paper(s)")
             workers = min(self._parallel_workers(), max(1, len(jobs)))
             print(f"queued {len(jobs)} paper(s) for summarize" + (f" with {workers} parallel sessions" if workers > 1 else ""))
             for pdf, _paper_id in jobs:
