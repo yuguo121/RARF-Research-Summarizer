@@ -16,10 +16,17 @@ from rarf_summarizer.pdf_pipeline import (
     extracted_paper_from_rows,
     file_sha256,
 )
+from rarf_summarizer.provenance import new_scan_id
 from rarf_summarizer.schema import Schema, load_schema
 from rarf_summarizer.selection import collect_pdfs, id_root_for
 from rarf_summarizer.storage import Store, utc_now
 from rarf_summarizer.summarizer import Summarizer, paper_id_for
+from rarf_summarizer.zotero_meta import (
+    ZoteroMeta,
+    fetch_zotero_api,
+    load_zotero_export,
+    match_zotero_meta,
+)
 
 
 def _folder_label(pdf: Path, folder: Path) -> str:
@@ -49,6 +56,8 @@ class Pipeline:
         self.packet_warn_chars = int(self.settings.get("packet_warn_chars") or 0)
         self.low_text = int(self.settings.get("low_text_char_threshold", 80))
         self.skip_reconcile_if_clean = bool(self.settings.get("skip_reconcile_if_clean", True))
+        self._zotero_rows: list[ZoteroMeta] | None = None
+        self._zotero_failed = False
 
     def active_backend_name(self) -> str:
         profile = load_profile(self.root)
@@ -57,6 +66,45 @@ class Pipeline:
 
     def _backend(self):
         return make_backend(self.settings, name=self.active_backend_name(), injected=self.backend)
+
+    def _zotero_metadata(self) -> list[ZoteroMeta]:
+        if self._zotero_rows is not None or self._zotero_failed:
+            return self._zotero_rows or []
+        import os
+
+        zotero_cfg = self.settings.get("zotero") or {}
+        rows: list[ZoteroMeta] = []
+        export_path = zotero_cfg.get("export_path")
+        if export_path:
+            candidate = Path(str(export_path)).expanduser()
+            if candidate.is_file():
+                try:
+                    rows = load_zotero_export(candidate)
+                    print(f"loaded {len(rows)} Zotero item(s) from {candidate.name}")
+                except Exception as exc:
+                    print(f"could not parse Zotero export {candidate}: {exc}")
+        if not rows and zotero_cfg.get("use_api"):
+            library_id = str(zotero_cfg.get("library_id") or os.environ.get("ZOTERO_LIBRARY_ID") or "").strip()
+            if library_id:
+                try:
+                    rows = fetch_zotero_api(
+                        library_id,
+                        api_key=os.environ.get(str(zotero_cfg.get("api_key_env") or "ZOTERO_API_KEY")),
+                        library_type=str(zotero_cfg.get("library_type") or "user"),
+                    )
+                    print(f"loaded {len(rows)} Zotero item(s) via API")
+                except Exception as exc:
+                    print(f"Zotero API unavailable: {exc}")
+        if not rows:
+            self._zotero_failed = True
+        self._zotero_rows = rows
+        return rows
+
+    def _zotero_for(self, pdf: Path) -> ZoteroMeta | None:
+        rows = self._zotero_metadata()
+        if not rows:
+            return None
+        return match_zotero_meta(pdf, rows)
 
     def _summarizer(self, backend, schema: Schema | None = None) -> Summarizer:
         return Summarizer(
@@ -71,17 +119,33 @@ class Pipeline:
 
     def extract_folder(self, folder: Path | None = None, force: bool = False) -> list[str]:
         folder = Path(folder or self.default_folder)
-        return self.extract_pdfs(discover_pdfs(folder), folder, force=force)
+        pdfs = discover_pdfs(folder)
+        return self.extract_pdfs(pdfs, folder, force=force, scan_id=new_scan_id(pdfs), scan_source=str(folder))
 
     def extract_paths(self, paths: list[str | Path], force: bool = False, folder: Path | None = None) -> list[str]:
         pdfs = collect_pdfs(paths)
         root = Path(folder) if folder else id_root_for(pdfs, self.default_folder)
-        return self.extract_pdfs(pdfs, root, force=force)
+        return self.extract_pdfs(pdfs, root, force=force, scan_id=new_scan_id(pdfs), scan_source="selection")
 
-    def extract_pdfs(self, pdfs: list[Path], folder: Path, force: bool = False) -> list[str]:
-        return [self.extract_one(pdf, folder, force=force) for pdf in pdfs]
+    def extract_pdfs(
+        self,
+        pdfs: list[Path],
+        folder: Path,
+        force: bool = False,
+        scan_id: str | None = None,
+        scan_source: str | None = None,
+    ) -> list[str]:
+        scan_id = scan_id or new_scan_id(pdfs)
+        return [self.extract_one(pdf, folder, force=force, scan_id=scan_id, scan_source=scan_source) for pdf in pdfs]
 
-    def extract_one(self, pdf: Path, folder: Path, force: bool = False) -> str:
+    def extract_one(
+        self,
+        pdf: Path,
+        folder: Path,
+        force: bool = False,
+        scan_id: str | None = None,
+        scan_source: str | None = None,
+    ) -> str:
         paper_id = paper_id_for(pdf, folder)
         record = self.store.get_paper(paper_id)
         current_hash = file_sha256(pdf)
@@ -93,7 +157,7 @@ class Pipeline:
         ):
             print(f"skipping extract for {pdf.name} (unchanged hash)")
             return paper_id
-        extracted = extract_paper(pdf, low_text_char_threshold=self.low_text)
+        extracted = extract_paper(pdf, low_text_char_threshold=self.low_text, zotero_meta=self._zotero_for(pdf))
         try:
             relative = str(pdf.resolve().relative_to(folder.resolve()))
         except ValueError:
@@ -108,11 +172,20 @@ class Pipeline:
                 "file_hash": extracted.file_hash,
                 "title": extracted.title or pdf.stem,
                 "authors": extracted.authors,
-                "year": _year_from_name(pdf.name),
+                "year": extracted.year or _year_from_name(pdf.name),
                 "doi": extracted.doi,
+                "publication": extracted.publication,
+                "volume": extracted.volume,
+                "issue": extracted.issue,
+                "pages": extracted.pages_range,
+                "zotero_key": extracted.zotero_key,
+                "meta_source": extracted.meta_source,
+                "citation": extracted.citation,
                 "page_count": extracted.page_count,
                 "warnings": json.dumps(extracted.warnings, ensure_ascii=False),
                 "extracted_at": utc_now(),
+                "scan_id": scan_id,
+                "scan_source": scan_source,
                 "status": "extracted",
             }
         )
@@ -204,20 +277,22 @@ class Pipeline:
                 paper_id = self.extract_one(pdf, folder)
                 jobs.append((pdf, paper_id))
             workers = min(self._parallel_workers(), max(1, len(jobs)))
-            if workers > 1:
-                print(f"summarizing {len(jobs)} paper(s) with {workers} parallel sessions")
+            print(f"queued {len(jobs)} paper(s) for summarize" + (f" with {workers} parallel sessions" if workers > 1 else ""))
+            for pdf, _paper_id in jobs:
+                print(f"  queue {pdf.name}")
             done: list[str] = []
             errors: list[str] = []
 
             def _one(pdf: Path, paper_id: str) -> str:
-                extracted = self._load_extracted(paper_id, pdf, folder)
-                print(f"summarizing {pdf.name} as {paper_id}")
-                summarizer.summarize_paper(paper_id, extracted, force=force)
-                record = self.store.get_paper(paper_id)
-                if record:
-                    record["status"] = "summarized"
-                    self.store.upsert_paper(record)
-                return paper_id
+                try:
+                    extracted = self._load_extracted(paper_id, pdf, folder)
+                    print(f"summarizing {pdf.name} as {paper_id}")
+                    summarizer.summarize_paper(paper_id, extracted, force=force)
+                    self.store.set_paper_status(paper_id, "summarized")
+                    return paper_id
+                except Exception:
+                    self.store.set_paper_status(paper_id, "error")
+                    raise
 
             if workers == 1:
                 for pdf, paper_id in jobs:

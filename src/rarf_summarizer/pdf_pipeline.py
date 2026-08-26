@@ -11,6 +11,8 @@ from pathlib import Path
 
 from pypdf import PdfReader
 
+from rarf_summarizer.zotero_meta import ZoteroMeta  # noqa: F401  (used in type hints)
+
 DOI_RE = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
 
 SECTION_ALIASES = {
@@ -100,6 +102,14 @@ class ExtractedPaper:
     pages: list[PageText]
     sections: list[SectionSpan]
     warnings: list[str] = field(default_factory=list)
+    year: str | None = None
+    publication: str | None = None
+    volume: str | None = None
+    issue: str | None = None
+    pages_range: str | None = None
+    zotero_key: str | None = None
+    meta_source: str = "pdf"
+    citation: str | None = None
 
     def page_map(self) -> dict[int, str]:
         return {page.page_number: page.clean_text or page.raw_text for page in self.pages}
@@ -171,6 +181,14 @@ def extracted_paper_from_rows(
         pages=page_objs,
         sections=section_objs,
         warnings=warnings,
+        year=record.get("year"),
+        publication=record.get("publication"),
+        volume=record.get("volume"),
+        issue=record.get("issue"),
+        pages_range=record.get("pages"),
+        zotero_key=record.get("zotero_key"),
+        meta_source=record.get("meta_source") or "pdf",
+        citation=record.get("citation"),
     )
 
 
@@ -380,7 +398,11 @@ def extract_doi(pages: list[str]) -> str | None:
     return match.group(0).rstrip(".") if match else None
 
 
-def extract_paper(path: Path, low_text_char_threshold: int = 80) -> ExtractedPaper:
+def extract_paper(
+    path: Path,
+    low_text_char_threshold: int = 80,
+    zotero_meta: "ZoteroMeta | None" = None,
+) -> ExtractedPaper:
     raw_pages = _extract_pages_pypdf(path)
     letters = sum(len(re.sub(r"\s+", "", page or "")) for page in raw_pages)
     if letters < max(400, low_text_char_threshold * max(len(raw_pages), 1)):
@@ -417,14 +439,40 @@ def extract_paper(path: Path, low_text_char_threshold: int = 80) -> ExtractedPap
     table_spans = extract_table_spans(path)
     if table_spans:
         sections.extend(table_spans)
+    year = None
+    publication = volume = issue = pages_range = zotero_key = None
+    citation = None
+    meta_source = "pdf"
+    title = meta.get("title")
+    authors = meta.get("author")
+    if zotero_meta is not None:
+        meta_source = zotero_meta.source
+        title = zotero_meta.title or title
+        authors = zotero_meta.authors or authors
+        year = zotero_meta.year
+        doi = zotero_meta.doi or doi
+        publication = zotero_meta.publication
+        volume = zotero_meta.volume
+        issue = zotero_meta.issue
+        pages_range = zotero_meta.pages
+        zotero_key = zotero_meta.item_key
+        citation = zotero_meta.citation()
     return ExtractedPaper(
         source_path=path,
         file_hash=file_sha256(path),
-        title=meta.get("title"),
-        authors=meta.get("author"),
+        title=title,
+        authors=authors,
         doi=doi,
         page_count=len(pages),
         pages=pages,
         sections=sections,
         warnings=warnings,
+        year=year,
+        publication=publication,
+        volume=volume,
+        issue=issue,
+        pages_range=pages_range,
+        zotero_key=zotero_key,
+        meta_source=meta_source,
+        citation=citation,
     )

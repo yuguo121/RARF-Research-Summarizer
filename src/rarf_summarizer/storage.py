@@ -18,9 +18,18 @@ CREATE TABLE IF NOT EXISTS papers (
     authors TEXT,
     year TEXT,
     doi TEXT,
+    publication TEXT,
+    volume TEXT,
+    issue TEXT,
+    pages TEXT,
+    zotero_key TEXT,
+    meta_source TEXT,
+    citation TEXT,
     page_count INTEGER,
     warnings TEXT,
     extracted_at TEXT,
+    scan_id TEXT,
+    scan_source TEXT,
     status TEXT
 );
 
@@ -183,7 +192,14 @@ class Store:
         self._lock = threading.RLock()
         self.conn = _LockedConnection(raw, self._lock)
         self.conn.executescript(SCHEMA_SQL)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self) -> None:
+        existing = {row["name"] for row in self.conn.execute("PRAGMA table_info(papers)").fetchall()}
+        for column in ("publication", "volume", "issue", "pages", "zotero_key", "meta_source", "citation", "scan_id", "scan_source"):
+            if column not in existing:
+                self.conn.execute(f"ALTER TABLE papers ADD COLUMN {column} TEXT")
 
     def close(self) -> None:
         self.conn.close()
@@ -199,9 +215,18 @@ class Store:
             "authors",
             "year",
             "doi",
+            "publication",
+            "volume",
+            "issue",
+            "pages",
+            "zotero_key",
+            "meta_source",
+            "citation",
             "page_count",
             "warnings",
             "extracted_at",
+            "scan_id",
+            "scan_source",
             "status",
         ]
         values = [record.get(col) for col in columns]
@@ -230,6 +255,10 @@ class Store:
             "VALUES (:paper_id, :section_key, :title, :page_start, :page_end, :text)",
             list(sections),
         )
+        self.conn.commit()
+
+    def set_paper_status(self, paper_id: str, status: str) -> None:
+        self.conn.execute("UPDATE papers SET status=? WHERE id=?", (status, paper_id))
         self.conn.commit()
 
     def get_paper(self, paper_id: str) -> dict[str, Any] | None:

@@ -14,13 +14,18 @@ def collect_pdfs(paths: list[str | Path]) -> list[Path]:
         path = Path(raw).expanduser()
         try:
             path = path.resolve()
-        except OSError:
+        except OSError as exc:
+            print(f"skipping unreadable path {raw}: {exc}")
             continue
         candidates: list[Path] = []
         if path.is_file() and path.suffix.lower() == ".pdf":
             candidates = [path]
         elif path.is_dir():
             candidates = [item.resolve() for item in discover_pdfs(path)]
+        elif path.exists():
+            print(f"skipping non-PDF path {path}")
+        else:
+            print(f"skipping missing path {path}")
         for candidate in candidates:
             if candidate not in seen:
                 seen.add(candidate)

@@ -194,7 +194,7 @@ def test_extract_skips_when_hash_unchanged(tmp_path: Path, monkeypatch):
     extracted.file_hash = file_sha256(pdf)
     calls = {"n": 0}
 
-    def fake_extract(path, low_text_char_threshold=80):
+    def fake_extract(path, low_text_char_threshold=80, **kwargs):
         calls["n"] += 1
         return extracted
 
@@ -348,7 +348,7 @@ def test_summarize_runs_papers_in_parallel(tmp_path: Path, monkeypatch):
         pdf.write_bytes(b"%PDF-" + name.encode())
         pdfs.append(pdf)
 
-    def fake_extract(path, low_text_char_threshold=80):
+    def fake_extract(path, low_text_char_threshold=80, **kwargs):
         paper = _extracted(tmp_path)
         paper.source_path = path
         paper.file_hash = file_sha256(path)
@@ -370,3 +370,39 @@ def test_summarize_runs_papers_in_parallel(tmp_path: Path, monkeypatch):
     assert peak > 1
     for paper_id in ids:
         assert pipeline.store.get_field(paper_id, "citation")
+        assert pipeline.store.get_paper(paper_id)["status"] == "summarized"
+
+
+def test_reconcile_failure_still_persists_sessions(tmp_path: Path):
+    store = Store(tmp_path / "rarf.sqlite")
+    schema = load_schema()
+    backend = FakeBackend(
+        {
+            "theory": json_response(theory_payload()),
+            "method": json_response(method_payload()),
+        }
+    )
+    summarizer = Summarizer(store, schema, backend, tmp_path / "work", skip_reconcile_if_clean=False)
+    summarizer.summarize_paper("demo-paper", _extracted(tmp_path))
+    assert store.get_field("demo-paper", "citation")
+    assert store.get_field("demo-paper", "sample")
+    assert "reconcile" in backend.calls
+    import json as jsonlib
+    row = store.get_field("demo-paper", "research_question")
+    blob = jsonlib.loads(row["generated_json"])
+    assert any("reconcile failed" in w or "no fake response" in w for w in blob.get("warnings", []))
+
+
+def test_method_failure_persists_theory(tmp_path: Path):
+    from rarf_summarizer.cursor_runtime import AgentRunError
+
+    store = Store(tmp_path / "rarf.sqlite")
+    schema = load_schema()
+    backend = FakeBackend({"theory": json_response(theory_payload())})
+    summarizer = Summarizer(store, schema, backend, tmp_path / "work")
+    with pytest.raises(AgentRunError):
+        summarizer.summarize_paper("demo-paper", _extracted(tmp_path))
+    citation = store.get_field("demo-paper", "citation")
+    assert citation and citation.get("generated_text")
+    sample = store.get_field("demo-paper", "sample")
+    assert sample is None or sample.get("status") == "not_reported"

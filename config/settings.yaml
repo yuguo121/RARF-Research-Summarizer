@@ -29,6 +29,12 @@ external:
     - id: deepseek-v4-pro
       label: DeepSeek V4 Pro
   parallel_sessions: 5
+zotero:
+  export_path: ""
+  use_api: false
+  library_id: ""
+  library_type: user
+  api_key_env: ZOTERO_API_KEY
 cursor:
   local: true
   tools: []

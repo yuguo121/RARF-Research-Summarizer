@@ -22,6 +22,7 @@ dev = ["pytest>=8.0"]
 
 [project.scripts]
 rarf = "rarf_summarizer.cli:main"
+rarf-desk = "rarf_summarizer.desk:main"
 
 [tool.setuptools.package-data]
 rarf_summarizer = ["web/*"]

@@ -42,7 +42,11 @@ IDENTITY_COLUMNS = [
     ("authors", "Authors"),
     ("year", "Year"),
     ("folder", "Folder"),
+    ("status", "Status"),
     ("relative_path", "Relative path"),
+    ("scan_id", "Scan"),
+    ("extracted_at", "Extracted at"),
+    ("meta_source", "Metadata source"),
 ]
 
 
@@ -116,7 +120,11 @@ def _overview(wb: Workbook, store: Store, schema: Schema) -> None:
             paper.get("authors"),
             paper.get("year"),
             paper.get("folder"),
+            paper.get("status"),
             paper.get("relative_path"),
+            paper.get("scan_id"),
+            paper.get("extracted_at"),
+            paper.get("meta_source"),
         ]
         fields_map = store.fields_for(paper["id"])
         exported = {}
@@ -133,9 +141,9 @@ def _overview(wb: Workbook, store: Store, schema: Schema) -> None:
     last_col = len(headers)
     last_row = max(2, 2 + len(papers))
     ws.auto_filter.ref = f"A2:{get_column_letter(last_col)}{last_row}"
-    ws.freeze_panes = "G3"
+    ws.freeze_panes = "K3"
     ws.auto_filter.ref = f"A2:{get_column_letter(last_col)}{max(last_row, 3)}"
-    widths = [22, 36, 28, 10, 22, 40] + [28] * len(fields)
+    widths = [22, 36, 28, 10, 22, 14, 40, 20, 20, 14] + [28] * len(fields)
     for index, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(index)].width = width
     ws.row_dimensions[1].height = 22

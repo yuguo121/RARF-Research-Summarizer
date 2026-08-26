@@ -377,6 +377,13 @@
       font-weight: 600;
       font-size: 12px;
     }
+    table.overview td.paper-cell .paper-meta {
+      font-weight: 400;
+      font-size: 10.5px;
+      color: var(--muted);
+      margin-top: 2px;
+      font-family: "JetBrains Mono", monospace;
+    }
     table.overview td.cell {
       cursor: pointer;
       white-space: pre-wrap;
@@ -584,7 +591,7 @@
       <div class="card-header"><h2>文献柜</h2></div>
       <div class="shortcuts" id="shortcuts"></div>
       <div class="crumbs" id="crumbs"></div>
-      <div class="hint">点文件夹进入；勾选 PDF，或把整个文件夹加入清单。</div>
+      <div class="hint">点文件夹进入；勾选 PDF，或把整个文件夹加入清单。Excel 会列出库中全部已抽取论文，不只是这次勾选的。</div>
       <div class="card-body file-list" id="listing"></div>
       <div class="selected-bar">
         <b>已选</b> <span id="selectedCount">0 项</span>
@@ -700,6 +707,11 @@
         <input type="text" id="inputBaseUrl" placeholder="https://api.deepseek.com" />
         <div class="help">DeepSeek OpenAI 兼容地址，默认 https://api.deepseek.com</div>
       </div>
+      <div class="form-group">
+        <label for="inputZoteroExport">Zotero 导出文件（可选）</label>
+        <input type="text" id="inputZoteroExport" placeholder="…\zotero-export.json" />
+        <div class="help">Zotero → 导出文献库 → JSON/CSL JSON。填入后元数据（作者/年份/DOI/期刊）直接来自 Zotero，不再依赖 LLM。</div>
+      </div>
       <input type="hidden" id="inputModelId" />
       <div class="modal-actions">
         <button type="button" class="ghost" id="settingsCancel">取消</button>
@@ -725,6 +737,7 @@
       extModelId: "",
       extModelLabel: "",
       parallelSessions: 5,
+      zotero: {},
     };
     const DEEPSEEK_DEFAULT_URL = "https://api.deepseek.com";
     const DEEPSEEK_FLASH = "deepseek-v4-flash";
@@ -765,6 +778,7 @@
       state.extModelId = data.external_model_id || "";
       state.extModelLabel = data.external_model_label || "";
       state.parallelSessions = data.parallel_sessions || 5;
+      state.zotero = data.zotero || {};
       const pill = $("statusPill");
       const ok = state.canSummarize;
       pill.className = "status-pill" + (ok ? " ok" : "");
@@ -801,6 +815,7 @@
       $("inputCursorKey").value = "";
       $("inputExtKey").value = "";
       $("inputBaseUrl").value = state.extBaseUrl || DEEPSEEK_DEFAULT_URL;
+      $("inputZoteroExport").value = (state.zotero && state.zotero.export_path) || "";
       syncModal();
       $("settingsOverlay").classList.add("open");
     }
@@ -836,6 +851,7 @@
         body.model_id = $("inputModelId").value.trim() || DEEPSEEK_FLASH;
         body.parallel_sessions = modalParallel;
       }
+      body.zotero_export = $("inputZoteroExport").value.trim();
       try {
         const res = await postJSON("/api/settings", body);
         applyStatus(res.state);
@@ -876,6 +892,12 @@
         use.type = "button"; use.textContent = "选用此文件夹";
         use.onclick = () => addSelected(listing.path, listing.path.split(/[\\/]/).pop(), "folder");
         crumbs.appendChild(use);
+        if ((listing.files || []).length) {
+          const all = document.createElement("button");
+          all.type = "button"; all.textContent = "全选当前 PDF";
+          all.onclick = () => { for (const file of listing.files) addSelected(file.path, file.name, "file"); };
+          crumbs.appendChild(all);
+        }
       }
       const box = $("listing");
       box.innerHTML = "";
@@ -962,7 +984,11 @@
       table.appendChild(head);
       for (const row of data.rows) {
         const tr = document.createElement("tr");
-        const td0 = document.createElement("td"); td0.className = "paper-cell"; td0.textContent = row.title; tr.appendChild(td0);
+        const td0 = document.createElement("td"); td0.className = "paper-cell";
+        const bits = [row.title];
+        const meta = [row.status, row.meta_source, row.scan_id].filter(Boolean).join(" · ");
+        td0.innerHTML = `<div>${row.title}</div>${meta ? `<div class="paper-meta">${meta}</div>` : ""}`;
+        tr.appendChild(td0);
         for (const f of data.fields || []) {
           const td = document.createElement("td");
           const cell = (row.cells || {})[f.id] || {};

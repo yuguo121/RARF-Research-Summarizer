@@ -21,7 +21,8 @@ def test_desk_html_has_backend_picker_and_cell_drawer():
     assert 'id="overview"' in html
     assert "保存人工稿" in html
     assert "按此提问词重跑并替换" in html
-    assert 'id="drawer"' in html
+    assert "id=\"drawer\"" in html
+    assert "全选当前 PDF" in html
 
 
 def test_backend_status_external_missing_key_disables_summarize(monkeypatch):

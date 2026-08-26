@@ -152,6 +152,8 @@ def _wrap_prompt(session: str, schema: Schema, packet: str, paper: ExtractedPape
         f"DOI: {paper.doi or 'unknown'}",
         f"Pages: {paper.page_count}",
     ]
+    if paper.citation:
+        meta.append(f"Citation (from {paper.meta_source or 'metadata'}): {paper.citation}")
     return f"""
 You are filling a Research Article Review Form (RARF) for one academic paper.
 Session: {session}
@@ -272,36 +274,48 @@ class Summarizer:
         pages = extracted.page_map()
         theory: dict[str, Envelope] = {}
         method: dict[str, Envelope] = {}
-        if self.schema.fields_for_session("theory"):
-            theory_packet = self._session_packet(extracted, "theory")
-            theory = self._run_session(
-                paper_id,
-                "theory",
-                theory_prompt(self.schema, theory_packet, extracted),
-                extracted,
-                model,
-                force,
-                session_fields="theory",
-            )
-        if self.schema.fields_for_session("method"):
-            method_packet = self._session_packet(extracted, "method")
-            method = self._run_session(
-                paper_id,
-                "method",
-                method_prompt(self.schema, method_packet, extracted),
-                extracted,
-                model,
-                force,
-                session_fields="method",
-            )
-        if theory and method:
-            reconciled = self._reconcile(paper_id, extracted, theory, method, pages, model, force)
-        else:
-            reconciled = merge_session_envelopes(self.schema, theory, method)
-        if self.schema.has("key_argument"):
-            reconciled = self._repair_if_needed(paper_id, extracted, reconciled, pages, model)
-        self._persist(paper_id, reconciled, pages)
-        return reconciled
+        try:
+            if self.schema.fields_for_session("theory"):
+                theory_packet = self._session_packet(extracted, "theory")
+                theory = self._run_session(
+                    paper_id,
+                    "theory",
+                    theory_prompt(self.schema, theory_packet, extracted),
+                    extracted,
+                    model,
+                    force,
+                    session_fields="theory",
+                )
+            if self.schema.fields_for_session("method"):
+                method_packet = self._session_packet(extracted, "method")
+                method = self._run_session(
+                    paper_id,
+                    "method",
+                    method_prompt(self.schema, method_packet, extracted),
+                    extracted,
+                    model,
+                    force,
+                    session_fields="method",
+                )
+            if theory and method:
+                try:
+                    reconciled = self._reconcile(paper_id, extracted, theory, method, pages, model, force)
+                except (AgentStartupError, AgentRunError, JsonExtractError) as exc:
+                    print(f"reconcile failed for {paper_id}; keeping theory/method merge ({exc})")
+                    reconciled = merge_session_envelopes(self.schema, theory, method)
+                    note = f"reconcile failed: {exc}"
+                    for envelope in reconciled.values():
+                        envelope.warnings.append(note)
+            else:
+                reconciled = merge_session_envelopes(self.schema, theory, method)
+            if self.schema.has("key_argument"):
+                reconciled = self._repair_if_needed(paper_id, extracted, reconciled, pages, model)
+            self._apply_metadata(paper_id, extracted, reconciled)
+            self._persist(paper_id, reconciled, pages)
+            return reconciled
+        except Exception:
+            self._persist_partial(paper_id, theory, method, pages)
+            raise
 
     def resummarize_fields(
         self,
@@ -511,6 +525,59 @@ class Summarizer:
         except Exception as exc:
             envelope.warnings.append(f"repair failed: {exc}")
         return envelopes
+
+    def _apply_metadata(
+        self,
+        paper_id: str,
+        extracted: ExtractedPaper,
+        envelopes: dict[str, Envelope],
+    ) -> None:
+        if not self.schema.has("citation"):
+            return
+        existing = self.store.get_field(paper_id, "citation") or {}
+        human = (existing.get("human_text") or "").strip()
+        if human:
+            return
+        citation = (extracted.citation or "").strip()
+        if not citation:
+            parts = []
+            if extracted.authors:
+                parts.append(extracted.authors.rstrip("."))
+            if extracted.year:
+                parts.append(f"({extracted.year}).")
+            if extracted.title:
+                parts.append(extracted.title.rstrip("."))
+            if extracted.doi:
+                parts.append(f"https://doi.org/{extracted.doi}")
+            citation = " ".join(parts)
+        if not citation:
+            return
+        source = extracted.meta_source or "pdf"
+        envelopes["citation"] = Envelope(
+            status="present",
+            confidence=0.99 if source in {"export", "api"} else 0.7,
+            value=citation,
+            warnings=[f"metadata from {source}"],
+        )
+
+    def _persist_partial(
+        self,
+        paper_id: str,
+        theory: dict[str, Envelope],
+        method: dict[str, Envelope],
+        pages: dict[int, str],
+    ) -> None:
+        if not theory and not method:
+            return
+        merged = merge_session_envelopes(self.schema, theory, method)
+        filled = [item for item in merged.values() if item.status != "not_reported" or item.value]
+        if not filled:
+            return
+        try:
+            self._persist(paper_id, merged, pages)
+            print(f"saved partial results for {paper_id} after a later session failed")
+        except Exception as exc:
+            print(f"could not save partial results for {paper_id}: {exc}")
 
     def _persist(
         self,

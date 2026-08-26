@@ -22,6 +22,7 @@ from rarf_summarizer.paths import load_settings, update_dotenv
 from rarf_summarizer.pipeline import Pipeline
 from rarf_summarizer.schema import load_schema
 from rarf_summarizer.selection import collect_pdfs, id_root_for, list_directory, windows_drives
+from rarf_summarizer.summarizer import paper_id_for
 
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
@@ -198,6 +199,12 @@ def _handler_for(ctx: dict):
                         ext["base_url"] = base_url
                     if model_id:
                         ext["model_id"] = model_id
+                zotero_export = str(payload.get("zotero_export") or "").strip()
+                if zotero_export or "zotero_export" in payload:
+                    zotero = pipeline.settings.setdefault("zotero", {})
+                    zotero["export_path"] = zotero_export
+                    pipeline._zotero_rows = None
+                    pipeline._zotero_failed = False
                 self._send_json({"ok": True, "state": _state_payload(pipeline)})
                 return
             if parsed.path == "/api/profile":
@@ -355,6 +362,7 @@ def _state_payload(pipeline: Pipeline) -> dict:
         "fields": base.as_dict(),
         "profile": profile,
         "drives": windows_drives(),
+        "zotero": pipeline.settings.get("zotero") or {},
     }
 
 
@@ -423,6 +431,9 @@ def _overview_payload(pipeline: Pipeline) -> dict:
                 "paper_id": paper["id"],
                 "title": paper.get("title") or paper.get("relative_path") or paper["id"],
                 "status": paper.get("status"),
+                "scan_id": paper.get("scan_id"),
+                "extracted_at": paper.get("extracted_at"),
+                "meta_source": paper.get("meta_source"),
                 "cells": cells,
             }
         )
@@ -481,6 +492,17 @@ def _run_job(pipeline: Pipeline, job: JobState, action: str, paths: list[str], p
                 raise ValueError("select at least one dimension")
             ids = pipeline.summarize_paths(paths, force=force, schema=schema)
             print(f"summarized {len(ids)} paper(s)")
+            selected_pdfs = collect_pdfs(paths)
+            root = id_root_for(selected_pdfs, pipeline.default_folder)
+            missing = []
+            for pdf in selected_pdfs:
+                paper_id = paper_id_for(pdf, root)
+                if not pipeline.store.fields_for(paper_id):
+                    missing.append(pdf.name)
+            if missing:
+                print(f"{len(missing)} selected paper(s) have no analysis:")
+                for name in missing:
+                    print(f"  missing {name}")
         exported = None
         if action == "run" or payload.get("export"):
             exported = str(pipeline.export(schema=schema))

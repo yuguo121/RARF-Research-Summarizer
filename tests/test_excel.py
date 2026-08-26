@@ -89,4 +89,6 @@ def test_excel_round_trip_preserves_human_overrides(tmp_path: Path):
     headers = [again["RARF Overview"].cell(2, col).value for col in range(1, again["RARF Overview"].max_column + 1)]
     rq_col = headers.index("Research question") + 1
     assert again["RARF Overview"].cell(3, rq_col).value == "Edited research question"
-    assert again["RARF Overview"].max_column == 6 + 23
+    assert again["RARF Overview"].max_column == 10 + 23
+    assert "Status" in headers
+    assert "Scan" in headers
