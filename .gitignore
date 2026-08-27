@@ -10,6 +10,8 @@ build/
 .env
 data/*.sqlite
 data/*.sqlite-journal
+data/*.sqlite-shm
+data/*.sqlite-wal
 data/work/
 output/*.xlsx
 output/~$*

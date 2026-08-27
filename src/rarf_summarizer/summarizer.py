@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,7 @@ from rarf_summarizer.cursor_runtime import AgentBackend, AgentRunError, AgentSta
 from rarf_summarizer.formatting import format_field, parse_field_value
 from rarf_summarizer.json_util import JsonExtractError, extract_json_object
 from rarf_summarizer.models import Envelope, slug_id
-from rarf_summarizer.pdf_pipeline import METHOD_SECTIONS, THEORY_SECTIONS, ExtractedPaper
+from rarf_summarizer.pdf_pipeline import METHOD_SECTIONS, THEORY_SECTIONS, ExtractedPaper, file_sha256
 from rarf_summarizer.quotes import verify_quote
 from rarf_summarizer.schema import Schema, apply_profile
 from rarf_summarizer.storage import Store, utc_now
@@ -37,14 +38,20 @@ def cache_key(file_hash: str, schema: Schema, model: str, session: str) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
-def paper_id_for(path: Path, root: Path) -> str:
-    try:
-        relative = path.resolve().relative_to(root.resolve())
-    except ValueError:
-        relative = Path(path.name)
-    digest = hashlib.sha1(str(relative).encode("utf-8")).hexdigest()[:10]
-    stem = path.stem[:80]
+def paper_id_for(path: Path, root: Path | None = None, file_hash: str | None = None) -> str:
+    """Content-based id: the same PDF maps to the same row regardless of where it was selected from."""
+    digest_src = file_hash or file_sha256(path)
+    digest = hashlib.sha1(digest_src.encode("utf-8")).hexdigest()[:10]
+    stem = Path(path).stem[:80]
     return f"{digest}:{stem}"
+
+
+def paper_id_for_zotero(meta) -> str:
+    """Stable id for a Zotero library item that may not have a local PDF yet."""
+    key = (meta.doi or meta.item_key or meta.title or "unknown").casefold()
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:10]
+    slug = re.sub(r"[^A-Za-z0-9]+", " ", meta.title or "")[:60].strip()
+    return f"zotero:{digest}:{slug}"
 
 
 def _field_block(schema: Schema, session: str) -> str:

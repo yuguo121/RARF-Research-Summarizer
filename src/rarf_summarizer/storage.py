@@ -120,6 +120,11 @@ CREATE TABLE IF NOT EXISTS qa_warnings (
     field_id TEXT,
     warning TEXT
 );
+
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
 """
 
 
@@ -189,6 +194,9 @@ class Store:
         self.path = path
         raw = sqlite3.connect(path, check_same_thread=False, timeout=8.0)
         raw.row_factory = sqlite3.Row
+        raw.execute("PRAGMA journal_mode=WAL")
+        raw.execute("PRAGMA busy_timeout=8000")
+        raw.execute("PRAGMA synchronous=NORMAL")
         self._lock = threading.RLock()
         self.conn = _LockedConnection(raw, self._lock)
         self.conn.executescript(SCHEMA_SQL)
@@ -259,6 +267,60 @@ class Store:
 
     def set_paper_status(self, paper_id: str, status: str) -> None:
         self.conn.execute("UPDATE papers SET status=? WHERE id=?", (status, paper_id))
+        self.conn.commit()
+
+    def find_by_doi(self, doi: str) -> dict[str, Any] | None:
+        if not doi:
+            return None
+        row = self.conn.execute("SELECT * FROM papers WHERE doi=?", (doi,)).fetchone()
+        return dict(row) if row else None
+
+    def find_by_zotero_key(self, zotero_key: str) -> dict[str, Any] | None:
+        if not zotero_key:
+            return None
+        row = self.conn.execute("SELECT * FROM papers WHERE zotero_key=?", (zotero_key,)).fetchone()
+        return dict(row) if row else None
+
+    def get_meta(self, key: str) -> str | None:
+        row = self.conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return str(row["value"]) if row else None
+
+    def set_meta(self, key: str, value: str) -> None:
+        self.conn.execute(
+            "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, value),
+        )
+        self.conn.commit()
+
+    def change_paper_id(self, old_id: str, new_id: str) -> None:
+        """Rename a paper id across papers and all child tables."""
+        if old_id == new_id:
+            return
+        self.conn.execute("UPDATE papers SET id=? WHERE id=?", (new_id, old_id))
+        for table in ("field_values", "pages", "sections", "evidence", "constructs", "measures", "runs", "qa_warnings"):
+            self.conn.execute(f"UPDATE {table} SET paper_id=? WHERE paper_id=?", (new_id, old_id))
+        self.conn.commit()
+
+    def merge_paper_into(self, old_id: str, new_id: str) -> None:
+        """Move child rows of a duplicate paper into the keeper, then delete the duplicate."""
+        if old_id == new_id:
+            return
+        self.conn.execute(
+            "DELETE FROM field_values WHERE paper_id=? AND field_id IN (SELECT field_id FROM field_values WHERE paper_id=?)",
+            (old_id, new_id),
+        )
+        self.conn.execute(
+            "DELETE FROM pages WHERE paper_id=? AND page_number IN (SELECT page_number FROM pages WHERE paper_id=?)",
+            (old_id, new_id),
+        )
+        self.conn.execute(
+            "DELETE FROM constructs WHERE paper_id=? AND construct_id IN (SELECT construct_id FROM constructs WHERE paper_id=?)",
+            (old_id, new_id),
+        )
+        self.conn.execute("DELETE FROM sections WHERE paper_id=?", (old_id,))
+        for table in ("field_values", "pages", "evidence", "constructs", "measures", "runs", "qa_warnings"):
+            self.conn.execute(f"UPDATE {table} SET paper_id=? WHERE paper_id=?", (new_id, old_id))
+        self.conn.execute("DELETE FROM papers WHERE id=?", (old_id,))
         self.conn.commit()
 
     def get_paper(self, paper_id: str) -> dict[str, Any] | None:

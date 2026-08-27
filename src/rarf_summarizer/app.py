@@ -246,6 +246,16 @@ def _handler_for(ctx: dict):
                 thread.start()
                 self._send_json({"ok": True, "status": "running"})
                 return
+            if parsed.path == "/api/zotero/import":
+                path = str(payload.get("path") or "").strip()
+                json_text = str(payload.get("json") or "").strip()
+                try:
+                    result = pipeline.import_zotero(path=Path(path) if path else None, json_text=json_text or None)
+                except Exception as exc:
+                    self._send_json({"error": str(exc)}, 400)
+                    return
+                self._send_json({"ok": True, **result})
+                return
             if parsed.path == "/api/export":
                 profile = load_profile(pipeline.root)
                 schema = schema_from_profile(pipeline.schema, profile)
@@ -452,6 +462,7 @@ def _overview_payload(pipeline: Pipeline) -> dict:
                 "publication": paper.get("publication"),
                 "authors": paper.get("authors"),
                 "folder": paper.get("folder"),
+                "has_pdf": bool(paper.get("source_path")),
                 "cells": cells,
             }
         )

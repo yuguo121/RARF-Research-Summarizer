@@ -17,10 +17,11 @@ from rarf_summarizer.pdf_pipeline import (
     file_sha256,
 )
 from rarf_summarizer.provenance import new_scan_id
-from rarf_summarizer.schema import Schema, load_schema
+from rarf_summarizer.migrate import migrate_content_ids
+from rarf_summarizer.schema import Schema, apply_profile, load_schema
 from rarf_summarizer.selection import collect_pdfs, id_root_for
 from rarf_summarizer.storage import Store, utc_now
-from rarf_summarizer.summarizer import Summarizer, cache_key, paper_id_for
+from rarf_summarizer.summarizer import Summarizer, paper_id_for, paper_id_for_zotero
 from rarf_summarizer.zotero_meta import (
     ZoteroMeta,
     fetch_zotero_api,
@@ -58,6 +59,9 @@ class Pipeline:
         self.skip_reconcile_if_clean = bool(self.settings.get("skip_reconcile_if_clean", True))
         self._zotero_rows: list[ZoteroMeta] | None = None
         self._zotero_failed = False
+        moved = migrate_content_ids(self.store)
+        if moved:
+            print(f"merged/re-keyed {moved} duplicate paper row(s) by content hash")
 
     def active_backend_name(self) -> str:
         profile = load_profile(self.root)
@@ -146,9 +150,18 @@ class Pipeline:
         scan_id: str | None = None,
         scan_source: str | None = None,
     ) -> str:
-        paper_id = paper_id_for(pdf, folder)
-        record = self.store.get_paper(paper_id)
+        pdf = Path(pdf)
         current_hash = file_sha256(pdf)
+        zmeta = self._zotero_for(pdf)
+        paper_id = paper_id_for(pdf, file_hash=current_hash)
+        if zmeta is not None:
+            library_row = self.store.find_by_zotero_key(zmeta.item_key or "") or (
+                self.store.find_by_doi(zmeta.doi or "") if zmeta.doi else None
+            )
+            if library_row and str(library_row["id"]).startswith("zotero:"):
+                # Attach the PDF to the existing Zotero library row instead of creating a new one.
+                self.store.change_paper_id(library_row["id"], paper_id)
+        record = self.store.get_paper(paper_id)
         if (
             not force
             and record
@@ -157,12 +170,14 @@ class Pipeline:
         ):
             print(f"skipping extract for {pdf.name} (unchanged hash)")
             return paper_id
-        extracted = extract_paper(pdf, low_text_char_threshold=self.low_text, zotero_meta=self._zotero_for(pdf))
+        extracted = extract_paper(pdf, low_text_char_threshold=self.low_text, zotero_meta=zmeta)
         try:
             relative = str(pdf.resolve().relative_to(folder.resolve()))
         except ValueError:
             relative = pdf.name
-        paper_id = paper_id_for(pdf, folder)
+        prior_status = (record or {}).get("status") or "extracted"
+        if prior_status == "library":
+            prior_status = "extracted"
         self.store.upsert_paper(
             {
                 "id": paper_id,
@@ -186,7 +201,7 @@ class Pipeline:
                 "extracted_at": utc_now(),
                 "scan_id": scan_id,
                 "scan_source": scan_source,
-                "status": "extracted",
+                "status": prior_status if prior_status in {"summarized", "partial"} else "extracted",
             }
         )
         self.store.replace_pages(
@@ -255,6 +270,17 @@ class Pipeline:
         cap = profile.get("parallel_sessions") or (self.settings.get("external") or {}).get("parallel_sessions") or 5
         return parallel_workers(cap)
 
+    def _missing_field_ids(self, paper_id: str, schema: Schema) -> list[str]:
+        """Fields with no usable text yet (neither generated nor human)."""
+        stored = self.store.fields_for(paper_id)
+        missing: list[str] = []
+        for spec in schema.fields:
+            row = stored.get(spec.id)
+            text = ((row or {}).get("human_text") or (row or {}).get("generated_text") or "").strip()
+            if not text:
+                missing.append(spec.id)
+        return missing
+
     def summarize_pdfs(
         self,
         pdfs: list[Path],
@@ -266,9 +292,9 @@ class Pipeline:
     ) -> list[str]:
         created = self.backend is None
         backend = self._backend()
+        active_schema = schema or self.schema
         try:
-            summarizer = self._summarizer(backend, schema)
-            jobs: list[tuple[Path, str]] = []
+            jobs: list[tuple[Path, str, list[str]]] = []
             skipped: list[str] = []
             seen_hashes: set[str] = set()
             for pdf in pdfs:
@@ -279,32 +305,33 @@ class Pipeline:
                 paper_id = self.extract_one(pdf, folder)
                 record = self.store.get_paper(paper_id) or {}
                 file_hash = record.get("file_hash") or file_sha256(pdf)
-                if not force and file_hash in seen_hashes:
+                if file_hash in seen_hashes:
                     skipped.append(pdf.name)
                     print(f"skipping duplicate PDF in this run: {pdf.name}")
                     continue
-                if not force and record.get("status") == "summarized" and self.store.cached_run(
-                    paper_id, "reconcile", cache_key(file_hash, schema or self.schema, summarizer.backend.resolve_model(), "reconcile")
-                ):
-                    skipped.append(pdf.name)
-                    print(f"skipping already summarized: {pdf.name}")
-                    continue
                 seen_hashes.add(file_hash)
-                jobs.append((pdf, paper_id))
+                missing = self._missing_field_ids(paper_id, active_schema)
+                if not force and not missing:
+                    skipped.append(pdf.name)
+                    print(f"skipping {pdf.name} (all {len(active_schema.fields)} fields filled)")
+                    continue
+                jobs.append((pdf, paper_id, missing))
             if skipped:
-                print(f"skipped {len(skipped)} already-processed paper(s)")
+                print(f"skipped {len(skipped)} already-complete paper(s)")
             workers = min(self._parallel_workers(), max(1, len(jobs)))
             print(f"queued {len(jobs)} paper(s) for summarize" + (f" with {workers} parallel sessions" if workers > 1 else ""))
-            for pdf, _paper_id in jobs:
-                print(f"  queue {pdf.name}")
+            for pdf, _paper_id, missing in jobs:
+                note = "full" if len(missing) == len(active_schema.fields) else f"{len(missing)} missing cell(s)"
+                print(f"  queue {pdf.name} ({note})")
             done: list[str] = []
             errors: list[str] = []
 
-            def _one(pdf: Path, paper_id: str) -> str:
+            def _one(pdf: Path, paper_id: str, missing: list[str]) -> str:
                 try:
                     extracted = self._load_extracted(paper_id, pdf, folder)
-                    print(f"summarizing {pdf.name} as {paper_id}")
-                    summarizer.summarize_paper(paper_id, extracted, force=force)
+                    target = active_schema if force else apply_profile(active_schema, missing)
+                    print(f"summarizing {pdf.name} as {paper_id} ({len(target.fields)} field(s))")
+                    self._summarizer(backend, target).summarize_paper(paper_id, extracted, force=force)
                     self.store.set_paper_status(paper_id, "summarized")
                     return paper_id
                 except Exception:
@@ -312,11 +339,11 @@ class Pipeline:
                     raise
 
             if workers == 1:
-                for pdf, paper_id in jobs:
-                    done.append(_one(pdf, paper_id))
+                for pdf, paper_id, missing in jobs:
+                    done.append(_one(pdf, paper_id, missing))
             else:
                 with ThreadPoolExecutor(max_workers=workers) as pool:
-                    futures = {pool.submit(_one, pdf, paper_id): paper_id for pdf, paper_id in jobs}
+                    futures = {pool.submit(_one, pdf, paper_id, missing): paper_id for pdf, paper_id, missing in jobs}
                     for future in as_completed(futures):
                         paper_id = futures[future]
                         try:
@@ -381,6 +408,92 @@ class Pipeline:
 
     def sync_back(self, path: Path | None = None) -> int:
         return sync_back(self.store, self.schema, path or self.output_path)
+
+    def import_zotero(self, path: Path | None = None, json_text: str | None = None) -> dict:
+        """Import Zotero items as library rows (metadata only, no PDF extraction)."""
+        if json_text:
+            import tempfile
+
+            with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as handle:
+                handle.write(json_text)
+                temp_path = Path(handle.name)
+            try:
+                rows = load_zotero_export(temp_path)
+            finally:
+                temp_path.unlink(missing_ok=True)
+        elif path:
+            rows = load_zotero_export(Path(path))
+        else:
+            raise ValueError("provide a Zotero export path or JSON text")
+        if not rows:
+            return {"imported": 0, "merged": 0}
+        self._zotero_rows = rows
+        self._zotero_failed = False
+        scan_id = new_scan_id()
+        imported = 0
+        merged = 0
+        for meta in rows:
+            pid = paper_id_for_zotero(meta)
+            existing = self.store.get_paper(pid)
+            if not existing and meta.doi:
+                existing = self.store.find_by_doi(meta.doi)
+            if existing:
+                if str(existing["id"]).startswith("zotero:") or not existing.get("source_path"):
+                    target = existing["id"]
+                else:
+                    # PDF already extracted: fold the library row into it.
+                    target = existing["id"]
+                    merged += 1
+                record = dict(existing)
+                record.update(
+                    {
+                        "title": meta.title or existing.get("title"),
+                        "authors": meta.authors or existing.get("authors"),
+                        "year": meta.year or existing.get("year"),
+                        "doi": meta.doi or existing.get("doi"),
+                        "publication": meta.publication or existing.get("publication"),
+                        "volume": meta.volume or existing.get("volume"),
+                        "issue": meta.issue or existing.get("issue"),
+                        "pages": meta.pages or existing.get("pages"),
+                        "zotero_key": meta.item_key or existing.get("zotero_key"),
+                        "meta_source": meta.source,
+                        "citation": meta.citation() or existing.get("citation"),
+                        "scan_id": scan_id,
+                        "scan_source": "zotero-import",
+                    }
+                )
+                self.store.upsert_paper(record)
+                if target != pid and self.store.get_paper(pid):
+                    self.store.merge_paper_into(pid, target)
+            else:
+                self.store.upsert_paper(
+                    {
+                        "id": pid,
+                        "source_path": "",
+                        "relative_path": meta.title or pid,
+                        "folder": "Zotero",
+                        "file_hash": f"zotero:{meta.item_key or meta.doi or pid}",
+                        "title": meta.title,
+                        "authors": meta.authors,
+                        "year": meta.year,
+                        "doi": meta.doi,
+                        "publication": meta.publication,
+                        "volume": meta.volume,
+                        "issue": meta.issue,
+                        "pages": meta.pages,
+                        "zotero_key": meta.item_key,
+                        "meta_source": meta.source,
+                        "citation": meta.citation(),
+                        "page_count": 0,
+                        "warnings": "[]",
+                        "extracted_at": utc_now(),
+                        "scan_id": scan_id,
+                        "scan_source": "zotero-import",
+                        "status": "library",
+                    }
+                )
+                imported += 1
+        return {"imported": imported, "merged": merged, "total": len(rows)}
 
     def run(
         self,

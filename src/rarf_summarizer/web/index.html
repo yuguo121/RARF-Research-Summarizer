@@ -535,7 +535,22 @@
       letter-spacing: 0.05em;
       color: var(--muted);
       padding: 8px 8px 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
+    .focus-nav .nav-group::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      background: var(--border-strong);
+    }
+    .focus-nav .nav-group[data-group="identity"]::before { background: #1F4E79; }
+    .focus-nav .nav-group[data-group="theory"]::before { background: #196F3D; }
+    .focus-nav .nav-group[data-group="constructs"]::before { background: #7D3C98; }
+    .focus-nav .nav-group[data-group="method"]::before { background: #B7950B; }
+    .focus-nav .nav-group[data-group="implications"]::before { background: #922B21; }
     .focus-nav .nav-item {
       display: block;
       width: 100%;
@@ -796,6 +811,7 @@
     </div>
     <div class="topbar-right">
       <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">检查中…</span></span>
+      <button class="settings-btn" id="zoteroBtn" type="button">Zotero 库</button>
       <button class="settings-btn" id="settingsBtn" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         设置
@@ -882,6 +898,26 @@
         <button type="button" id="pagerPrev">‹ 上一页</button>
         <button type="button" id="pagerNext">下一页 ›</button>
         <span class="pager-info" id="pagerInfo"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zotero import modal -->
+  <div class="modal-overlay" id="zoteroOverlay">
+    <div class="modal">
+      <h2>Zotero 库</h2>
+      <p class="sub">导入 Zotero 导出的 JSON / CSL JSON。只写入元数据（标题、作者、年份、期刊、DOI），不抽取 PDF、不调用模型。导入后可在 Summary 页看到全部文献，并逐格总结。</p>
+      <div class="form-group">
+        <label for="zoteroPath">导出文件路径</label>
+        <input type="text" id="zoteroPath" placeholder="…\zotero-export.json" />
+      </div>
+      <div class="form-group">
+        <label for="zoteroFile">或选择文件</label>
+        <input type="file" id="zoteroFile" accept=".json,.rdf" />
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="ghost" id="zoteroCancel">取消</button>
+        <button type="button" class="primary" id="zoteroImport">导入</button>
       </div>
     </div>
   </div>
@@ -1141,6 +1177,36 @@
       } catch (err) { log("保存失败：" + String(err.message || err)); }
     };
 
+    /* ── Zotero import ── */
+    function openZotero() {
+      $("zoteroPath").value = (state.zotero && state.zotero.export_path) || "";
+      $("zoteroOverlay").classList.add("open");
+    }
+    function closeZotero() { $("zoteroOverlay").classList.remove("open"); }
+    $("zoteroBtn").onclick = openZotero;
+    $("zoteroCancel").onclick = closeZotero;
+    $("zoteroOverlay").onclick = (e) => { if (e.target === $("zoteroOverlay")) closeZotero(); };
+    $("zoteroImport").onclick = async () => {
+      const file = $("zoteroFile").files[0];
+      const path = $("zoteroPath").value.trim();
+      let body = null;
+      if (file) {
+        const text = await file.text();
+        body = { json: text };
+      } else if (path) {
+        body = { path };
+      } else {
+        log("请选择 Zotero 导出文件或填写路径。");
+        return;
+      }
+      try {
+        const res = await postJSON("/api/zotero/import", body);
+        log(`Zotero 导入完成：新增 ${res.imported} 条，合并 ${res.merged} 条，共 ${res.total} 条。`);
+        closeZotero();
+        if (state.activeTab === "summary") loadOverview().catch(() => {});
+      } catch (err) { log("导入失败：" + String(err.message || err)); }
+    };
+
     /* ── File browser ── */
     function renderSelected() {
       $("selectedCount").textContent = `${state.selected.size} 项`;
@@ -1261,14 +1327,14 @@
       return v.length > n ? v.slice(0, n) + "…" : v;
     }
     function _overviewFiltered(rows) {
-      const q = state.overviewSearch.trim().casefold();
+      const q = state.overviewSearch.trim().toLowerCase();
       let out = rows.filter(row => {
         if (state.overviewYear && String(row.year || "") !== state.overviewYear) return false;
         if (state.overviewPub && String(row.publication || "") !== state.overviewPub) return false;
         if (state.overviewStatus && String(row.status || "") !== state.overviewStatus) return false;
         if (state.overviewGroup && String(row.folder || "") !== state.overviewGroup) return false;
         if (!q) return true;
-        const hay = [row.title, row.authors, row.publication, row.paper_id].filter(Boolean).join(" ").casefold();
+        const hay = [row.title, row.authors, row.publication, row.paper_id].filter(Boolean).join(" ").toLowerCase();
         return hay.includes(q);
       });
       const key = state.overviewSort;
@@ -1283,41 +1349,50 @@
 
     function _fillSelect(id, values, current) {
       const el = $(id);
-      const existing = el.value;
+      if (!el) return;
       el.innerHTML = el.options[0].outerHTML + values.map(v => `<option value="${String(v).replace(/"/g, "&quot;")}">${v}</option>`).join("");
       el.value = values.includes(current) ? current : "";
     }
 
     async function loadOverview() {
-      const data = await getJSON("/api/overview");
-      state.overview = data;
-      const facets = data.facets || {};
+      try {
+        const data = await getJSON("/api/overview");
+        state.overview = data;
+        const facets = data.facets || {};
       _fillSelect("filterYear", facets.years || [], state.overviewYear);
       _fillSelect("filterPub", facets.publications || [], state.overviewPub);
       _fillSelect("filterStatus", facets.statuses || [], state.overviewStatus);
       _fillSelect("filterGroup", facets.groups || [], state.overviewGroup);
-      $("filterYear").value = state.overviewYear;
-      $("filterPub").value = state.overviewPub;
-      $("filterStatus").value = state.overviewStatus;
-      $("filterGroup").value = state.overviewGroup;
+      if ($("filterYear")) $("filterYear").value = state.overviewYear;
+      if ($("filterPub")) $("filterPub").value = state.overviewPub;
+      if ($("filterStatus")) $("filterStatus").value = state.overviewStatus;
+      if ($("filterGroup")) $("filterGroup").value = state.overviewGroup;
 
       const host = $("overview");
+      if (!host) { console.error("overview element missing"); return; }
       host.innerHTML = "";
       const rows = _overviewFiltered(data.rows || []);
-      if (!rows.length) { host.innerHTML = `<div class="hint" style="padding:18px">没有匹配的论文。</div>`; $("pagerInfo").textContent = ""; return; }
+      if (!rows.length) { host.innerHTML = `<div class="hint" style="padding:18px">没有匹配的论文。</div>`; if ($("pagerInfo")) $("pagerInfo").textContent = ""; return; }
       const totalPages = Math.max(1, Math.ceil(rows.length / state.overviewPerPage));
       if (state.overviewPage > totalPages) state.overviewPage = totalPages;
       const start = (state.overviewPage - 1) * state.overviewPerPage;
       const pageRows = rows.slice(start, start + state.overviewPerPage);
-      $("pagerInfo").textContent = `第 ${state.overviewPage} / ${totalPages} 页 · 共 ${rows.length} 篇`;
-      $("pagerPrev").disabled = state.overviewPage <= 1;
-      $("pagerNext").disabled = state.overviewPage >= totalPages;
+      if ($("pagerInfo")) $("pagerInfo").textContent = `第 ${state.overviewPage} / ${totalPages} 页 · 共 ${rows.length} 篇`;
+      if ($("pagerPrev")) $("pagerPrev").disabled = state.overviewPage <= 1;
+      if ($("pagerNext")) $("pagerNext").disabled = state.overviewPage >= totalPages;
 
       const table = document.createElement("table");
       table.className = "overview";
       const head = document.createElement("tr");
       const th0 = document.createElement("th"); th0.textContent = "文献"; head.appendChild(th0);
-      for (const f of data.fields || []) { const th = document.createElement("th"); th.textContent = f.label; th.title = f.id; head.appendChild(th); }
+      const groupColor = { identity: "#D6EAF8", theory: "#D5F5E3", constructs: "#E8DAEF", method: "#FCF3CF", implications: "#FADBD8" };
+      for (const f of data.fields || []) {
+        const th = document.createElement("th");
+        th.textContent = f.label;
+        th.title = `${f.id} · ${f.group}`;
+        th.style.background = groupColor[f.group] || "";
+        head.appendChild(th);
+      }
       table.appendChild(head);
       for (const row of pageRows) {
         const tr = document.createElement("tr");
@@ -1341,6 +1416,11 @@
         table.appendChild(tr);
       }
       host.appendChild(table);
+      } catch (err) {
+        console.error("loadOverview failed", err);
+        const host = $("overview");
+        if (host) host.innerHTML = `<div class="hint" style="padding:18px;color:var(--danger)">加载失败：${String(err.message || err)}</div>`;
+      }
     }
     $("pagerPrev").onclick = () => { if (state.overviewPage > 1) { state.overviewPage--; loadOverview(); } };
     $("pagerNext").onclick = () => { state.overviewPage++; loadOverview(); };
@@ -1383,9 +1463,9 @@
     }
 
     function openFocus(row, field, cell) {
-      state.focus = { paper_id: row.paper_id, field, cell, title: row.title };
+      state.focus = { paper_id: row.paper_id, field, cell, title: row.title, has_pdf: row.has_pdf !== false };
       $("focusTitle").textContent = field.label;
-      $("focusMeta").textContent = `${row.title} · ${field.id} · ${cell.source || "none"}`;
+      $("focusMeta").textContent = `${row.title} · ${field.id} · ${cell.source || "none"}${row.has_pdf === false ? " · 无 PDF" : ""}`;
       const content = $("focusContent");
       content.innerHTML = "";
       const text = cell.text || "";
@@ -1407,9 +1487,16 @@
         if (!groups[g]) groups[g] = [];
         groups[g].push(f);
       }
-      for (const [group, fields] of Object.entries(groups)) {
+      const groupOrder = ["identity", "theory", "constructs", "method", "implications", "other"];
+      const sortedGroups = Object.entries(groups).sort((a, b) => {
+        const ia = groupOrder.indexOf(a[0]);
+        const ib = groupOrder.indexOf(b[0]);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      });
+      for (const [group, fields] of sortedGroups) {
         const label = document.createElement("div");
         label.className = "nav-group";
+        label.dataset.group = group;
         label.textContent = group;
         nav.appendChild(label);
         for (const f of fields) {
@@ -1430,16 +1517,19 @@
     /* ── Drawer ── */
     function closeDrawer() { $("drawer").classList.remove("open"); $("drawerOverlay").classList.remove("open"); state.drawer = null; }
     function openDrawer(row, field, cell) {
-      state.drawer = { paper_id: row.paper_id, field, cell, title: row.title };
+      state.drawer = { paper_id: row.paper_id, field, cell, title: row.title, has_pdf: row.has_pdf !== false };
       $("drawerTitle").textContent = field.label;
       $("drawerMeta").textContent = `${row.title} · ${field.id} · ${cell.source || "none"}`;
       $("drawerText").value = cell.text || "";
       const box = document.querySelector(`textarea[data-id="${field.id}"]`);
       $("drawerInstruction").value = (box && box.value) || field.instruction || "";
       $("drawerExtra").value = "";
+      $("drawerRerun").disabled = state.drawer.has_pdf ? (!state.canSummarize) : true;
+      $("drawerRerun").title = state.drawer.has_pdf ? "" : "该文献没有本地 PDF，无法总结";
       $("drawer").classList.add("open");
       $("drawerOverlay").classList.add("open");
       setBusy(state.busy);
+      if (!state.drawer.has_pdf) $("drawerRerun").disabled = true;
     }
 
     /* ── Job polling ── */

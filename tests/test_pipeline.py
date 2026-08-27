@@ -233,6 +233,109 @@ def test_paper_id_is_stable(tmp_path: Path):
     assert file_sha256(pdf) == file_sha256(pdf)
 
 
+def test_paper_id_follows_content_not_location(tmp_path: Path):
+    a = tmp_path / "lib1" / "paper.pdf"
+    b = tmp_path / "lib2" / "nested" / "paper.pdf"
+    a.parent.mkdir()
+    b.parent.mkdir(parents=True)
+    a.write_bytes(b"%PDF-same")
+    b.write_bytes(b"%PDF-same")
+    assert paper_id_for(a, a.parent) == paper_id_for(b, b.parent)
+    other = tmp_path / "lib1" / "other.pdf"
+    other.write_bytes(b"%PDF-different")
+    assert paper_id_for(a, a.parent) != paper_id_for(other, other.parent)
+
+
+def test_missing_field_ids_detects_gaps(tmp_path: Path):
+    from rarf_summarizer.pipeline import Pipeline
+
+    pipeline = Pipeline()
+    pipeline.store = Store(tmp_path / "rarf.sqlite")
+    schema = load_schema()
+    pipeline.store.upsert_paper(
+        {
+            "id": "p1",
+            "source_path": str(tmp_path / "a.pdf"),
+            "relative_path": "a.pdf",
+            "folder": ".",
+            "file_hash": "h",
+            "title": "t",
+            "authors": None,
+            "year": None,
+            "doi": None,
+            "page_count": 1,
+            "warnings": "[]",
+            "extracted_at": None,
+            "status": "extracted",
+        }
+    )
+    assert len(pipeline._missing_field_ids("p1", schema)) == len(schema.fields)
+    pipeline.store.upsert_field("p1", schema.fields[0].id, {"status": "present", "generated_text": "x", "generated_json": "{}"})
+    missing = pipeline._missing_field_ids("p1", schema)
+    assert len(missing) == len(schema.fields) - 1
+    pipeline.store.set_human_override("p1", schema.fields[1].id, "human")
+    assert len(pipeline._missing_field_ids("p1", schema)) == len(schema.fields) - 2
+
+
+def test_zotero_import_creates_library_rows(tmp_path: Path):
+    from rarf_summarizer.pipeline import Pipeline
+
+    export = tmp_path / "zotero.json"
+    export.write_text(
+        '[{"key": "ABC123", "data": {"title": "Demo Paper", "creators": [{"lastName": "Krause", "firstName": "R."}], "date": "2014", "DOI": "10.1000/x"}}]',
+        encoding="utf-8",
+    )
+    pipeline = Pipeline()
+    pipeline.store = Store(tmp_path / "rarf.sqlite")
+    result = pipeline.import_zotero(path=export)
+    assert result["imported"] == 1
+    rows = pipeline.store.list_papers()
+    assert len(rows) == 1
+    assert rows[0]["status"] == "library"
+    assert rows[0]["doi"] == "10.1000/x"
+    assert rows[0]["id"].startswith("zotero:")
+    # Re-import merges instead of duplicating
+    result2 = pipeline.import_zotero(path=export)
+    assert result2["imported"] == 0
+    assert len(pipeline.store.list_papers()) == 1
+
+
+def test_migration_merges_duplicate_hashes(tmp_path: Path):
+    from rarf_summarizer.migrate import migrate_content_ids
+
+    store = Store(tmp_path / "rarf.sqlite")
+    for pid in ("old1:paper", "old2:paper"):
+        store.upsert_paper(
+            {
+                "id": pid,
+                "source_path": str(tmp_path / "paper.pdf"),
+                "relative_path": f"{pid}.pdf",
+                "folder": ".",
+                "file_hash": "samehash",
+                "title": "Same",
+                "authors": None,
+                "year": None,
+                "doi": None,
+                "page_count": 1,
+                "warnings": "[]",
+                "extracted_at": None,
+                "status": "extracted",
+            }
+        )
+    store.upsert_field("old1:paper", "citation", {"status": "present", "generated_text": "c", "generated_json": "{}"})
+    store.upsert_field("old2:paper", "findings", {"status": "present", "generated_text": "f", "generated_json": "{}"})
+    moved = migrate_content_ids(store)
+    assert moved == 2
+    rows = store.list_papers()
+    assert len(rows) == 1
+    survivor = rows[0]
+    assert survivor["id"].startswith(__import__("hashlib").sha1(b"samehash").hexdigest()[:10])
+    fields = store.fields_for(survivor["id"])
+    assert fields["citation"]["generated_text"] == "c"
+    assert fields["findings"]["generated_text"] == "f"
+    assert migrate_content_ids(store) == 0
+
+
 def test_theory_only_profile_skips_method_session(tmp_path: Path):
     store = Store(tmp_path / "rarf.sqlite")
     schema = apply_profile(load_schema(), ["citation", "framing", "key_argument"])
