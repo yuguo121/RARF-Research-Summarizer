@@ -159,6 +159,9 @@ def _handler_for(ctx: dict):
             if parsed.path == "/api/overview":
                 self._send_json(_overview_payload(pipeline))
                 return
+            if parsed.path == "/api/pick-files":
+                self._send_json({"paths": _pick_pdf_files(pipeline)})
+                return
             self._send_json({"error": "not found"}, 404)
 
         def do_POST(self) -> None:
@@ -505,6 +508,29 @@ def _overview_payload(pipeline: Pipeline) -> dict:
         "rows": rows,
         "facets": {"years": years, "publications": publications, "statuses": statuses, "groups": groups},
     }
+
+
+def _pick_pdf_files(pipeline: Pipeline) -> list[str]:
+    """Open the OS file picker (multi-select, PDF filter) and return absolute paths."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except Exception:
+        return []
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        initial = str(pipeline.default_folder) if pipeline.default_folder else None
+        paths = filedialog.askopenfilenames(
+            parent=root,
+            title="选择 PDF 文件（可多选）",
+            initialdir=initial,
+            filetypes=[("PDF 文件", "*.pdf"), ("所有文件", "*.*")],
+        )
+    finally:
+        root.destroy()
+    return [str(Path(p)) for p in paths or ()]
 
 
 def _browse(pipeline: Pipeline, raw: str) -> dict:

@@ -66,11 +66,26 @@ def _authors_from_creators(creators: Iterable[dict] | None) -> str | None:
     names: list[str] = []
     for creator in creators or []:
         name = creator.get("name") or " ".join(
-            part for part in [creator.get("firstName"), creator.get("lastName")] if part
+            part
+            for part in [
+                creator.get("firstName") or creator.get("given"),
+                creator.get("lastName") or creator.get("family"),
+            ]
+            if part
         ).strip()
         if name:
             names.append(name)
     return "; ".join(names) or None
+
+
+def _csl_issued_year(value: Any) -> str | None:
+    """CSL JSON dates: {"issued": {"date-parts": [[2010, 5]]}}."""
+    if isinstance(value, dict):
+        parts = value.get("date-parts") or []
+        if parts and parts[0]:
+            return _clean_year(parts[0][0])
+        return None
+    return _clean_year(value)
 
 
 def _authors_from_rdf(value: Any) -> str | None:
@@ -91,14 +106,18 @@ def _authors_from_rdf(value: Any) -> str | None:
 def _meta_from_data(data: dict, source: str, item_key: str | None = None) -> ZoteroMeta:
     return ZoteroMeta(
         title=data.get("title") or None,
-        authors=_authors_from_creators(data.get("creators")) or _authors_from_rdf(data.get("authors")),
-        year=_clean_year(data.get("date") or data.get("year")),
+        authors=(
+            _authors_from_creators(data.get("creators"))
+            or _authors_from_creators(data.get("author"))
+            or _authors_from_rdf(data.get("authors"))
+        ),
+        year=_clean_year(data.get("date") or data.get("year")) or _csl_issued_year(data.get("issued")),
         doi=_clean_doi(data.get("DOI") or data.get("doi")),
-        publication=data.get("publicationTitle") or data.get("journal") or None,
+        publication=data.get("publicationTitle") or data.get("container-title") or data.get("journal") or None,
         volume=str(data.get("volume")) if data.get("volume") else None,
         issue=str(data.get("issue")) if data.get("issue") else None,
-        pages=str(data.get("pages")) if data.get("pages") else None,
-        item_key=item_key or data.get("key") or None,
+        pages=str(data.get("pages") or data.get("page") or "") or None,
+        item_key=item_key or data.get("key") or data.get("id") or None,
         source=source,
     )
 

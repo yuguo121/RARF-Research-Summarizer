@@ -831,6 +831,7 @@
     <!-- File browser -->
     <div class="card">
       <div class="card-header"><h2>文献柜</h2></div>
+      <div class="shortcuts"><button type="button" class="sm" id="pickFilesBtn">用文件管理器选 PDF…</button><span class="hint">弹出系统选择窗口，可跨文件夹多选批量加入</span></div>
       <div class="shortcuts" id="shortcuts"></div>
       <div class="crumbs" id="crumbs"></div>
       <div class="hint">点文件夹进入；勾选 PDF，或把整个文件夹加入清单。Excel 会列出库中全部已抽取论文，不只是这次勾选的。</div>
@@ -1253,6 +1254,20 @@
       }
     }
     function addSelected(path, name, kind) { state.selected.set(path, { path, name, kind }); renderSelected(); }
+
+    $("pickFilesBtn").onclick = async () => {
+      log("文件管理器已打开（窗口可能在浏览器后面）…");
+      try {
+        const data = await getJSON("/api/pick-files");
+        let added = 0;
+        for (const p of data.paths || []) {
+          if (state.selected.has(p)) continue;
+          addSelected(p, p.split(/[\\/]/).pop(), "file");
+          added++;
+        }
+        log(added ? `已通过文件管理器加入 ${added} 个 PDF。` : "未选择新文件。");
+      } catch (err) { log("文件管理器选择失败：" + String(err.message || err)); }
+    };
 
     function renderListing() {
       const listing = state.listing;
