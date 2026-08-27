@@ -64,7 +64,7 @@ After editing cells in `RARF Overview`, run `rarf sync-back` so those edits are 
 
 - `Pipeline` discovers PDFs, extracts text, and stamps each row with a `scan_id`.
 - `Summarizer` runs a theory session and a method session per paper, then reconciles them; if the reconcile pass fails, the completed theory/method merge is kept instead of dropping the row.
-- API calls live in `cursor_runtime` (`CursorSdkBackend` for the local Cursor agent, `ExternalChatBackend` for DeepSeek); the desk picks the backend via Settings.
+- API calls live in `cursor_runtime` (`CursorSdkBackend` for the local Cursor agent, `ExternalChatBackend` for any OpenAI-compatible API such as 智谱 GLM or DeepSeek); the desk picks the backend via Settings.
 
 ## Model
 

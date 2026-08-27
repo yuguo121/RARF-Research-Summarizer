@@ -11,10 +11,11 @@ def test_desk_html_has_backend_picker_and_cell_drawer():
     assert 'id="settingsBtn"' in html
     assert 'id="modeLocal"' in html
     assert 'id="modeExternal"' in html
-    assert 'id="modelFlash"' in html
-    assert 'id="modelPro"' in html
+    assert 'id="modelCards"' in html
+    assert "glm-5.3-flash" in html
     assert "deepseek-v4-flash" in html
     assert "deepseek-v4-pro" in html
+    assert "open.bigmodel.cn" in html
     assert 'id="fgParallel"' in html
     assert "&lt;5" in html
     assert "&lt;100" in html

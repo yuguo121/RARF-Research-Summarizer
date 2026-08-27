@@ -20,14 +20,28 @@ model:
   no_silent_fallback: true
   backend: local
 external:
-  base_url: https://api.deepseek.com
-  model_id: deepseek-v4-flash
+  base_url: https://open.bigmodel.cn/api/paas/v4
+  model_id: glm-5.3-flash
   api_key_env: EXTERNAL_API_KEY
   presets:
+    - id: glm-5.3-flash
+      label: 智谱 GLM-5.3 Flash
+      base_url: https://open.bigmodel.cn/api/paas/v4
+      temperature: 1
+      top_p: 0.95
+    - id: glm-5.3
+      label: 智谱 GLM-5.3
+      base_url: https://open.bigmodel.cn/api/paas/v4
+      temperature: 1
+      top_p: 0.95
     - id: deepseek-v4-flash
       label: DeepSeek V4 Flash
+      base_url: https://api.deepseek.com
+      temperature: 0
     - id: deepseek-v4-pro
       label: DeepSeek V4 Pro
+      base_url: https://api.deepseek.com
+      temperature: 0
   parallel_sessions: 5
 zotero:
   export_path: ""

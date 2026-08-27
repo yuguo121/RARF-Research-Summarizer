@@ -985,20 +985,11 @@
       <div class="form-group" id="fgExtKey" style="display:none">
         <label for="inputExtKey">API Key（本地服务可留空）</label>
         <input type="password" id="inputExtKey" placeholder="sk-…" autocomplete="off" />
-        <div class="help">在 platform.deepseek.com 申请，或本地服务留空。已保存时留空即可。</div>
+        <div class="help">在对应平台申请（bigmodel.cn / platform.deepseek.com 等），本地服务可留空。已保存时留空即可。</div>
       </div>
       <div class="form-group" id="fgModelPick" style="display:none">
-        <label>DeepSeek 模型</label>
-        <div class="mode-cards" id="modelCards">
-          <div class="mode-card" id="modelFlash" data-model="deepseek-v4-flash">
-            <div class="mode-name">Flash</div>
-            <div class="mode-desc">deepseek-v4-flash · 更快更便宜</div>
-          </div>
-          <div class="mode-card" id="modelPro" data-model="deepseek-v4-pro">
-            <div class="mode-name">Pro</div>
-            <div class="mode-desc">deepseek-v4-pro · 更强推理</div>
-          </div>
-        </div>
+        <label>模型预设（或在下方手动填 Base URL / Model ID）</label>
+        <div class="mode-cards" id="modelCards"></div>
       </div>
       <div class="form-group" id="fgParallel" style="display:none">
         <label>并行会话数</label>
@@ -1045,6 +1036,7 @@
       extBaseUrl: "",
       extModelId: "",
       extModelLabel: "",
+      extPresets: [],
       parallelSessions: 5,
       zotero: {},
       overviewPage: 1,
@@ -1057,9 +1049,14 @@
       overviewSort: "title",
       activeTab: "extract",
     };
-    const DEEPSEEK_DEFAULT_URL = "https://api.deepseek.com";
-    const DEEPSEEK_FLASH = "deepseek-v4-flash";
-    const DEEPSEEK_PRO = "deepseek-v4-pro";
+    const FALLBACK_PRESETS = [
+      { id: "glm-5.3-flash", label: "智谱 GLM-5.3 Flash", base_url: "https://open.bigmodel.cn/api/paas/v4" },
+      { id: "glm-5.3", label: "智谱 GLM-5.3", base_url: "https://open.bigmodel.cn/api/paas/v4" },
+      { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", base_url: "https://api.deepseek.com" },
+      { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", base_url: "https://api.deepseek.com" },
+    ];
+    function extPresets() { return (state.extPresets && state.extPresets.length) ? state.extPresets : FALLBACK_PRESETS; }
+    function presetById(id) { return extPresets().find((p) => p.id === id) || null; }
     const $ = (id) => document.getElementById(id);
 
     async function getJSON(url) {
@@ -1095,6 +1092,7 @@
       state.extBaseUrl = data.external_base_url || "";
       state.extModelId = data.external_model_id || "";
       state.extModelLabel = data.external_model_label || "";
+      state.extPresets = data.external_presets || [];
       state.parallelSessions = data.parallel_sessions || 5;
       state.zotero = data.zotero || {};
       const pill = $("statusPill");
@@ -1102,8 +1100,8 @@
       pill.className = "status-pill" + (ok ? " ok" : "");
       if (data.backend_message) $("statusText").textContent = data.backend_message;
       else if (state.backend === "external") {
-        const model = state.extModelLabel || state.extModelId || "DeepSeek";
-        $("statusText").textContent = data.has_external_key ? `${model} · 并行<${state.parallelSessions}` : "缺 DeepSeek API key";
+        const model = state.extModelLabel || state.extModelId || "外部模型";
+        $("statusText").textContent = data.has_external_key ? `${model} · 并行<${state.parallelSessions}` : "缺 External API key";
       }
       else $("statusText").textContent = data.has_api_key ? "CURSOR_API_KEY 已加载" : "未找到 API key";
       setBusy(state.busy);
@@ -1111,13 +1109,35 @@
 
     /* ── Settings modal ── */
     let modalMode = "local";
-    let modalModel = DEEPSEEK_FLASH;
+    let modalModel = "";
     let modalParallel = 5;
     function setModalModel(id) {
-      modalModel = id === DEEPSEEK_PRO ? DEEPSEEK_PRO : DEEPSEEK_FLASH;
+      const preset = presetById(id) || extPresets()[0] || null;
+      modalModel = preset ? preset.id : (id || "");
       $("inputModelId").value = modalModel;
-      $("modelFlash").classList.toggle("selected", modalModel === DEEPSEEK_FLASH);
-      $("modelPro").classList.toggle("selected", modalModel === DEEPSEEK_PRO);
+      if (preset && preset.base_url) $("inputBaseUrl").value = preset.base_url;
+      document.querySelectorAll("#modelCards .mode-card").forEach((el) => {
+        el.classList.toggle("selected", el.dataset.model === modalModel);
+      });
+    }
+    function renderModelCards() {
+      const box = $("modelCards");
+      box.innerHTML = "";
+      extPresets().forEach((p) => {
+        const card = document.createElement("div");
+        card.className = "mode-card";
+        card.dataset.model = p.id;
+        const name = document.createElement("div");
+        name.className = "mode-name";
+        name.textContent = p.label || p.id;
+        const desc = document.createElement("div");
+        desc.className = "mode-desc";
+        desc.textContent = p.id + (p.base_url ? " · " + String(p.base_url).replace(/^https?:\/\//, "") : "");
+        card.appendChild(name);
+        card.appendChild(desc);
+        card.onclick = () => setModalModel(p.id);
+        box.appendChild(card);
+      });
     }
     function setModalParallel(cap) {
       const allowed = [5, 10, 50, 100];
@@ -1128,11 +1148,13 @@
     }
     function openSettings() {
       modalMode = state.backend;
-      setModalModel(state.extModelId || DEEPSEEK_FLASH);
+      renderModelCards();
+      setModalModel(state.extModelId || (extPresets()[0] || {}).id || "");
       setModalParallel(state.parallelSessions || 5);
       $("inputCursorKey").value = "";
       $("inputExtKey").value = "";
-      $("inputBaseUrl").value = state.extBaseUrl || DEEPSEEK_DEFAULT_URL;
+      const curPreset = presetById(modalModel);
+      $("inputBaseUrl").value = state.extBaseUrl || (curPreset && curPreset.base_url) || "";
       $("inputZoteroExport").value = (state.zotero && state.zotero.export_path) || "";
       syncModal();
       $("settingsOverlay").classList.add("open");
@@ -1147,13 +1169,12 @@
       $("fgModelPick").style.display = modalMode === "external" ? "" : "none";
       $("fgParallel").style.display = modalMode === "external" ? "" : "none";
       if (modalMode === "external" && !$("inputBaseUrl").value.trim()) {
-        $("inputBaseUrl").value = DEEPSEEK_DEFAULT_URL;
+        const preset = presetById(modalModel) || extPresets()[0];
+        if (preset && preset.base_url) $("inputBaseUrl").value = preset.base_url;
       }
     }
     $("modeLocal").onclick = () => { modalMode = "local"; syncModal(); };
     $("modeExternal").onclick = () => { modalMode = "external"; syncModal(); };
-    $("modelFlash").onclick = () => setModalModel(DEEPSEEK_FLASH);
-    $("modelPro").onclick = () => setModalModel(DEEPSEEK_PRO);
     document.querySelectorAll("#parallelCards .mode-card").forEach((el) => {
       el.onclick = () => setModalParallel(el.dataset.parallel);
     });
@@ -1165,8 +1186,9 @@
       if (modalMode === "local" && $("inputCursorKey").value.trim()) body.api_key = $("inputCursorKey").value.trim();
       if (modalMode === "external") {
         if ($("inputExtKey").value.trim()) body.api_key = $("inputExtKey").value.trim();
-        body.base_url = $("inputBaseUrl").value.trim() || DEEPSEEK_DEFAULT_URL;
-        body.model_id = $("inputModelId").value.trim() || DEEPSEEK_FLASH;
+        const fallback = presetById($("inputModelId").value.trim()) || extPresets()[0] || {};
+        body.base_url = $("inputBaseUrl").value.trim() || fallback.base_url || "";
+        body.model_id = $("inputModelId").value.trim() || fallback.id || "";
         body.parallel_sessions = modalParallel;
       }
       body.zotero_export = $("inputZoteroExport").value.trim();

@@ -26,10 +26,12 @@ from rarf_summarizer.summarizer import paper_id_for
 
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
-DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_PRESETS = [
-    {"id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash"},
-    {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro"},
+DEFAULT_EXTERNAL_BASE_URL = "https://api.deepseek.com"
+DEFAULT_EXTERNAL_PRESETS = [
+    {"id": "glm-5.3-flash", "label": "智谱 GLM-5.3 Flash", "base_url": "https://open.bigmodel.cn/api/paas/v4"},
+    {"id": "glm-5.3", "label": "智谱 GLM-5.3", "base_url": "https://open.bigmodel.cn/api/paas/v4"},
+    {"id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "base_url": "https://api.deepseek.com"},
+    {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "base_url": "https://api.deepseek.com"},
 ]
 
 
@@ -170,9 +172,9 @@ def _handler_for(ctx: dict):
                 parallel_sessions = payload.get("parallel_sessions")
                 if backend == "external":
                     if not base_url:
-                        base_url = str((pipeline.settings.get("external") or {}).get("base_url") or DEEPSEEK_BASE_URL)
+                        base_url = str((pipeline.settings.get("external") or {}).get("base_url") or DEFAULT_EXTERNAL_BASE_URL)
                     if not model_id:
-                        model_id = str((pipeline.settings.get("external") or {}).get("model_id") or DEEPSEEK_PRESETS[0]["id"])
+                        model_id = str((pipeline.settings.get("external") or {}).get("model_id") or DEFAULT_EXTERNAL_PRESETS[0]["id"])
                 if backend in {"local", "external"}:
                     profile = load_profile(pipeline.root)
                     save_profile(
@@ -374,7 +376,7 @@ def _state_payload(pipeline: Pipeline) -> dict:
         "external_base_url": status.get("external_base_url", ""),
         "external_model_id": status.get("external_model_id", ""),
         "external_model_label": status.get("external_model_label", ""),
-        "external_presets": status.get("external_presets") or DEEPSEEK_PRESETS,
+        "external_presets": status.get("external_presets") or DEFAULT_EXTERNAL_PRESETS,
         "parallel_sessions": status.get("parallel_sessions", 5),
         "parallel_options": PARALLEL_OPTIONS,
         "fields": base.as_dict(),
@@ -391,7 +393,7 @@ def _backend_status(pipeline: Pipeline, profile: dict | None = None) -> dict:
     env_name = str(ext.get("api_key_env") or "EXTERNAL_API_KEY")
     base_url = (os.environ.get("EXTERNAL_BASE_URL") or ext.get("base_url") or "").strip()
     model_id = (os.environ.get("EXTERNAL_MODEL_ID") or ext.get("model_id") or "").strip()
-    presets = ext.get("presets") or DEEPSEEK_PRESETS
+    presets = ext.get("presets") or DEFAULT_EXTERNAL_PRESETS
     has_api_key = bool(os.environ.get("CURSOR_API_KEY"))
     has_external_key = bool(os.environ.get(env_name) or os.environ.get("EXTERNAL_API_KEY"))
     if backend == "external":
@@ -425,7 +427,7 @@ def _backend_status(pipeline: Pipeline, profile: dict | None = None) -> dict:
         "backend_message": message,
         "backends": [
             {"id": "local", "label": "Local Cursor Agent"},
-            {"id": "external", "label": "External API (DeepSeek)"},
+            {"id": "external", "label": "External API"},
         ],
     }
 

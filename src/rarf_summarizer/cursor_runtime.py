@@ -510,13 +510,18 @@ class ExternalChatBackend:
             raise AgentStartupError("external.base_url is not set")
         url = base if base.endswith("/chat/completions") else base + "/chat/completions"
         model_id = self.resolve_model()
-        payload = json.dumps(
-            {
-                "model": model_id,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0,
-            }
-        ).encode("utf-8")
+        presets = ext.get("presets") or []
+        preset = next((p for p in presets if str(p.get("id") or "") == model_id), {})
+        temperature = preset.get("temperature", ext.get("temperature"))
+        top_p = preset.get("top_p", ext.get("top_p"))
+        body: dict[str, Any] = {
+            "model": model_id,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": float(temperature) if temperature is not None else 0,
+        }
+        if top_p is not None:
+            body["top_p"] = float(top_p)
+        payload = json.dumps(body).encode("utf-8")
         request = urllib.request.Request(
             url,
             data=payload,
