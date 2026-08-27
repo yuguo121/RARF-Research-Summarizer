@@ -812,6 +812,7 @@
     <div class="topbar-right">
       <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">检查中…</span></span>
       <button class="settings-btn" id="zoteroBtn" type="button">Zotero 库</button>
+      <button class="settings-btn" id="quitBtn" type="button">退出</button>
       <button class="settings-btn" id="settingsBtn" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         设置
@@ -1184,6 +1185,11 @@
     }
     function closeZotero() { $("zoteroOverlay").classList.remove("open"); }
     $("zoteroBtn").onclick = openZotero;
+    $("quitBtn").onclick = async () => {
+      if (!confirm("确定退出 RARF Desk？后台服务会停止。")) return;
+      try { await postJSON("/api/shutdown", {}); } catch (err) {}
+      document.body.innerHTML = "<div style='padding:60px;font-family:sans-serif'>RARF Desk 已退出，可以关闭此页面。</div>";
+    };
     $("zoteroCancel").onclick = closeZotero;
     $("zoteroOverlay").onclick = (e) => { if (e.target === $("zoteroOverlay")) closeZotero(); };
     $("zoteroImport").onclick = async () => {

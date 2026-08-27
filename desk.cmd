@@ -1,11 +1,10 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-set "PY=.venv\Scripts\python.exe"
-if not exist "%PY%" set "PY=python"
-"%PY%" -m rarf_summarizer.desk %*
-if errorlevel 1 (
-  echo.
-  echo RARF Desk exited with an error. See messages above.
-  pause
+rem Prefer pythonw (no console window). The server keeps running after this window closes.
+if exist ".venv\Scripts\pythonw.exe" (
+  set "PYW=.venv\Scripts\pythonw.exe"
+) else (
+  set "PYW=pythonw"
 )
+start "RARF Desk" /b "" "%PYW%" -m rarf_summarizer.desk %*

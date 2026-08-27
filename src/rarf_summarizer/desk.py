@@ -18,6 +18,21 @@ def _free_port(preferred: int) -> int:
             return int(sock.getsockname()[1])
 
 
+def _redirect_headless_log(project_root: Path | None) -> None:
+    """pythonw has no console; send stdout/stderr to data/desk.log instead of crashing on print."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    root = project_root or Path.cwd()
+    try:
+        log_dir = root / "data"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        handle = open(log_dir / "desk.log", "a", encoding="utf-8", buffering=1)
+    except OSError:
+        return
+    sys.stdout = handle
+    sys.stderr = handle
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(argv if argv is not None else sys.argv[1:])
     if "--help" in argv or "-h" in argv:
@@ -43,6 +58,7 @@ def main(argv: list[str] | None = None) -> int:
         # When launched from an installed console script, cwd may not be the project.
         candidate = Path.cwd()
         project_root = candidate if (candidate / "config" / "settings.yaml").is_file() else None
+    _redirect_headless_log(project_root)
     port = _free_port(port)
     try:
         serve(port=port, open_browser=open_browser, project_root=project_root)

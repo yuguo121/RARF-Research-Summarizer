@@ -95,12 +95,13 @@ class _LogTee:
 def serve(port: int = 8765, open_browser: bool = True, project_root: Path | None = None) -> None:
     pipeline = Pipeline(project_root)
     job = JobState()
-    ctx = {"pipeline": pipeline, "job": job}
+    ctx: dict = {"pipeline": pipeline, "job": job}
     handler = _handler_for(ctx)
     class DeskServer(ThreadingHTTPServer):
         allow_reuse_address = False
 
     server = DeskServer(("127.0.0.1", port), handler)
+    ctx["server"] = server
     url = f"http://127.0.0.1:{port}/"
     print(f"RARF desk at {url}", flush=True)
     if open_browser:
@@ -109,7 +110,8 @@ def serve(port: int = 8765, open_browser: bool = True, project_root: Path | None
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nstopping RARF desk")
-        server.shutdown()
+    finally:
+        server.server_close()
 
 
 def _handler_for(ctx: dict):
@@ -245,6 +247,12 @@ def _handler_for(ctx: dict):
                 )
                 thread.start()
                 self._send_json({"ok": True, "status": "running"})
+                return
+            if parsed.path == "/api/shutdown":
+                self._send_json({"ok": True})
+                server = ctx.get("server")
+                if server is not None:
+                    threading.Thread(target=server.shutdown, daemon=True).start()
                 return
             if parsed.path == "/api/zotero/import":
                 path = str(payload.get("path") or "").strip()
