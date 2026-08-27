@@ -37,7 +37,10 @@ def test_backend_status_external_missing_key_disables_summarize(monkeypatch):
     assert status["can_summarize"] is False
     model_id = status["external_model_id"]
     presets = status["external_presets"]
-    expected_env = next((p.get("api_key_env") for p in presets if p.get("id") == model_id), None) or "EXTERNAL_API_KEY"
+    expected_env = next(
+        (f"{str(p.get('provider')).upper()}_API_KEY" for p in presets if p.get("id") == model_id and p.get("provider")),
+        "EXTERNAL_API_KEY",
+    )
     assert expected_env in status["backend_message"]
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -68,3 +69,17 @@ def resolve_under_root(root: Path, value: str | Path) -> Path:
     if path.is_absolute():
         return path
     return (root / path).resolve()
+
+
+def provider_slug(base_url: str) -> str:
+    """Derive a provider slug from an API base URL for env var naming (slug_API_KEY / slug_BASE_URL)."""
+    host = re.sub(r"^https?://", "", str(base_url or "").strip()).split("/")[0].split(":")[0]
+    parts = [p for p in host.split(".") if p]
+    if parts and parts[0] in {"api", "open", "www", "platform", "gateway"} and len(parts) > 1:
+        parts = parts[1:]
+    while len(parts) > 1 and parts[-1] in {"com", "cn", "net", "org", "io", "ai", "dev", "co", "ac"}:
+        parts = parts[:-1]
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", parts[0] if parts else "").strip("_").lower()
+    if not slug or slug.replace("_", "").isdigit():
+        return "local"
+    return slug

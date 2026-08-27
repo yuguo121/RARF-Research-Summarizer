@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from rarf_summarizer.json_util import first_complete_object, try_extract_json_object
+from rarf_summarizer.paths import provider_slug
 
 PREFERRED_ID_CANDIDATES = (
     "cursor-grok-4.6-high",
@@ -572,19 +573,23 @@ def make_backend(settings: dict[str, Any], *, name: str | None = None, injected=
 
     merged = dict(settings)
     ext = dict(merged.get("external") or {})
-    if os.environ.get("EXTERNAL_BASE_URL"):
-        ext["base_url"] = os.environ["EXTERNAL_BASE_URL"].strip()
-    if os.environ.get("EXTERNAL_MODEL_ID"):
-        ext["model_id"] = os.environ["EXTERNAL_MODEL_ID"].strip()
     merged["external"] = ext
     kind = (name or (merged.get("model") or {}).get("backend") or "local").casefold()
     if kind == "external":
         model_id = str(ext.get("model_id") or "").strip()
         presets = ext.get("presets") or []
         preset = next((p for p in presets if str(p.get("id") or "") == model_id), {})
+        provider = str(preset.get("provider") or ext.get("provider") or "").strip()
+        base_url = str(ext.get("base_url") or preset.get("base_url") or "").strip()
+        if not provider and base_url:
+            provider = provider_slug(base_url)
+        if provider:
+            env_base = str(os.environ.get(f"{provider.upper()}_BASE_URL") or "").strip()
+            if env_base:
+                base_url = env_base
+        ext["base_url"] = base_url
         env_candidates: list[str] = []
-        for candidate in (preset.get("api_key_env"), ext.get("api_key_env"), "EXTERNAL_API_KEY"):
-            candidate = str(candidate or "").strip()
+        for candidate in (f"{provider.upper()}_API_KEY" if provider else "", "EXTERNAL_API_KEY"):
             if candidate and candidate not in env_candidates:
                 env_candidates.append(candidate)
         env_name = env_candidates[0] if env_candidates else "EXTERNAL_API_KEY"
@@ -594,7 +599,6 @@ def make_backend(settings: dict[str, Any], *, name: str | None = None, injected=
             if value:
                 env_name, api_key = candidate, value
                 break
-        base_url = str(ext.get("base_url") or "").strip()
         if not base_url:
             raise AgentStartupError("external.base_url is not set")
         if not api_key and not _is_local_base(base_url):

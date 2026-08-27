@@ -1050,10 +1050,10 @@
       activeTab: "extract",
     };
     const FALLBACK_PRESETS = [
-      { id: "glm-5.3-flash", label: "智谱 GLM-5.3 Flash", base_url: "https://open.bigmodel.cn/api/paas/v4" },
-      { id: "glm-5.3", label: "智谱 GLM-5.3", base_url: "https://open.bigmodel.cn/api/paas/v4" },
-      { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", base_url: "https://api.deepseek.com" },
-      { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", base_url: "https://api.deepseek.com" },
+      { id: "glm-5.3-flash", label: "智谱 GLM-5.3 Flash", provider: "zhipu", base_url: "https://open.bigmodel.cn/api/paas/v4" },
+      { id: "glm-5.3", label: "智谱 GLM-5.3", provider: "zhipu", base_url: "https://open.bigmodel.cn/api/paas/v4" },
+      { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", provider: "deepseek", base_url: "https://api.deepseek.com" },
+      { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", provider: "deepseek", base_url: "https://api.deepseek.com" },
     ];
     function extPresets() { return (state.extPresets && state.extPresets.length) ? state.extPresets : FALLBACK_PRESETS; }
     function presetById(id) { return extPresets().find((p) => p.id === id) || null; }
@@ -1116,8 +1116,8 @@
       modalModel = preset ? preset.id : (id || "");
       $("inputModelId").value = modalModel;
       if (preset && preset.base_url) $("inputBaseUrl").value = preset.base_url;
-      const envName = (preset && preset.api_key_env) || "EXTERNAL_API_KEY";
-      $("extKeyHelp").textContent = `保存后写入 ${envName}（各厂商 key 分开保存）。本地服务可留空；已保存时留空即可。`;
+      const prefix = ((preset && preset.provider) || "EXTERNAL").toUpperCase();
+      $("extKeyHelp").textContent = `保存后写入 ${prefix}_API_KEY / ${prefix}_BASE_URL（各厂商分开保存）。本地服务可留空；已保存时留空即可。`;
       document.querySelectorAll("#modelCards .mode-card").forEach((el) => {
         el.classList.toggle("selected", el.dataset.model === modalModel);
       });
@@ -1134,7 +1134,7 @@
         name.textContent = p.label || p.id;
         const desc = document.createElement("div");
         desc.className = "mode-desc";
-        desc.textContent = p.id + (p.base_url ? " · " + String(p.base_url).replace(/^https?:\/\//, "") : "");
+        desc.textContent = p.id + (p.base_url ? " · " + String(p.base_url).replace(/^https?:\/\//, "") : "") + (p.has_key ? " · key ✓" : "");
         card.appendChild(name);
         card.appendChild(desc);
         card.onclick = () => setModalModel(p.id);

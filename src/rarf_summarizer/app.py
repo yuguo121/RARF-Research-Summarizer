@@ -18,7 +18,7 @@ from rarf_summarizer.dimension_profile import (
     schema_from_profile,
 )
 from rarf_summarizer.formatting import effective_text
-from rarf_summarizer.paths import load_settings, update_dotenv
+from rarf_summarizer.paths import load_settings, provider_slug, update_dotenv
 from rarf_summarizer.pipeline import Pipeline
 from rarf_summarizer.schema import load_schema
 from rarf_summarizer.selection import collect_pdfs, id_root_for, list_directory, windows_drives
@@ -28,10 +28,10 @@ from rarf_summarizer.summarizer import paper_id_for
 WEB_DIR = Path(__file__).resolve().parent / "web"
 DEFAULT_EXTERNAL_BASE_URL = "https://api.deepseek.com"
 DEFAULT_EXTERNAL_PRESETS = [
-    {"id": "glm-5.3-flash", "label": "智谱 GLM-5.3 Flash", "base_url": "https://open.bigmodel.cn/api/paas/v4", "api_key_env": "ZHIPU_API_KEY"},
-    {"id": "glm-5.3", "label": "智谱 GLM-5.3", "base_url": "https://open.bigmodel.cn/api/paas/v4", "api_key_env": "ZHIPU_API_KEY"},
-    {"id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "base_url": "https://api.deepseek.com", "api_key_env": "DEEPSEEK_API_KEY"},
-    {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "base_url": "https://api.deepseek.com", "api_key_env": "DEEPSEEK_API_KEY"},
+    {"id": "glm-5.3-flash", "label": "智谱 GLM-5.3 Flash", "provider": "zhipu", "base_url": "https://open.bigmodel.cn/api/paas/v4"},
+    {"id": "glm-5.3", "label": "智谱 GLM-5.3", "provider": "zhipu", "base_url": "https://open.bigmodel.cn/api/paas/v4"},
+    {"id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "provider": "deepseek", "base_url": "https://api.deepseek.com"},
+    {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "provider": "deepseek", "base_url": "https://api.deepseek.com"},
 ]
 
 
@@ -185,30 +185,29 @@ def _handler_for(ctx: dict):
                         parallel_sessions=parallel_sessions,
                     )
                 env_updates: dict[str, str] = {}
-                if api_key:
-                    if backend == "external":
-                        ext_cfg = pipeline.settings.get("external") or {}
-                        presets = ext_cfg.get("presets") or DEFAULT_EXTERNAL_PRESETS
-                        preset = next((p for p in presets if str(p.get("id") or "") == model_id), {})
-                        key_name = str(preset.get("api_key_env") or ext_cfg.get("api_key_env") or "EXTERNAL_API_KEY")
-                    else:
-                        key_name = "CURSOR_API_KEY"
-                    env_updates[key_name] = api_key
-                    os.environ[key_name] = api_key
-                if base_url:
-                    env_updates["EXTERNAL_BASE_URL"] = base_url
-                    os.environ["EXTERNAL_BASE_URL"] = base_url
-                if model_id:
-                    env_updates["EXTERNAL_MODEL_ID"] = model_id
-                    os.environ["EXTERNAL_MODEL_ID"] = model_id
-                if env_updates:
-                    update_dotenv(pipeline.root, env_updates)
-                if base_url or model_id:
+                if backend == "external":
                     ext = pipeline.settings.setdefault("external", {})
+                    presets = ext.get("presets") or DEFAULT_EXTERNAL_PRESETS
+                    preset = next((p for p in presets if str(p.get("id") or "") == model_id), {})
+                    provider = str(preset.get("provider") or ext.get("provider") or provider_slug(base_url) or "").strip()
+                    if provider:
+                        prefix = provider.upper()
+                        if api_key:
+                            env_updates[f"{prefix}_API_KEY"] = api_key
+                            os.environ[f"{prefix}_API_KEY"] = api_key
+                        if base_url:
+                            env_updates[f"{prefix}_BASE_URL"] = base_url
+                            os.environ[f"{prefix}_BASE_URL"] = base_url
+                        ext["provider"] = provider
                     if base_url:
                         ext["base_url"] = base_url
                     if model_id:
                         ext["model_id"] = model_id
+                elif api_key:
+                    env_updates["CURSOR_API_KEY"] = api_key
+                    os.environ["CURSOR_API_KEY"] = api_key
+                if env_updates:
+                    update_dotenv(pipeline.root, env_updates)
                 zotero_export = str(payload.get("zotero_export") or "").strip()
                 if zotero_export or "zotero_export" in payload:
                     zotero = pipeline.settings.setdefault("zotero", {})
@@ -396,18 +395,25 @@ def _backend_status(pipeline: Pipeline, profile: dict | None = None) -> dict:
     profile = profile or load_profile(pipeline.root)
     backend = str(profile.get("backend") or "local").casefold()
     ext = pipeline.settings.get("external") or {}
-    base_url = (os.environ.get("EXTERNAL_BASE_URL") or ext.get("base_url") or "").strip()
-    model_id = (os.environ.get("EXTERNAL_MODEL_ID") or ext.get("model_id") or "").strip()
     presets = ext.get("presets") or DEFAULT_EXTERNAL_PRESETS
+    model_id = str(ext.get("model_id") or "").strip()
     preset = next((p for p in presets if str(p.get("id") or "") == model_id), {})
-    env_candidates: list[str] = []
-    for candidate in (preset.get("api_key_env"), ext.get("api_key_env"), "EXTERNAL_API_KEY"):
-        candidate = str(candidate or "").strip()
-        if candidate and candidate not in env_candidates:
-            env_candidates.append(candidate)
-    env_name = env_candidates[0] if env_candidates else "EXTERNAL_API_KEY"
+    provider = str(ext.get("provider") or preset.get("provider") or "").strip()
+    base_url = str(ext.get("base_url") or preset.get("base_url") or "").strip()
+    if not provider and base_url:
+        provider = provider_slug(base_url)
+    if provider:
+        env_base = str(os.environ.get(f"{provider.upper()}_BASE_URL") or "").strip()
+        if env_base:
+            base_url = env_base
+    env_name = f"{provider.upper()}_API_KEY" if provider else "EXTERNAL_API_KEY"
     has_api_key = bool(os.environ.get("CURSOR_API_KEY"))
-    has_external_key = any(os.environ.get(name) for name in env_candidates)
+    has_external_key = bool(os.environ.get(env_name)) or bool(os.environ.get("EXTERNAL_API_KEY"))
+    preset_status = []
+    for item in presets:
+        item_provider = str(item.get("provider") or provider_slug(str(item.get("base_url") or "")) or "").strip()
+        item_env = f"{item_provider.upper()}_API_KEY" if item_provider else ""
+        preset_status.append({**item, "provider": item_provider, "has_key": bool(item_env and os.environ.get(item_env))})
     if backend == "external":
         local_host = any(token in base_url.casefold() for token in ("localhost", "127.0.0.1", "0.0.0.0", "::1"))
         can_summarize = bool(base_url) and (has_external_key or local_host)
@@ -434,7 +440,7 @@ def _backend_status(pipeline: Pipeline, profile: dict | None = None) -> dict:
         "external_base_url": base_url,
         "external_model_id": model_id,
         "external_model_label": preset_label,
-        "external_presets": presets,
+        "external_presets": preset_status,
         "parallel_sessions": normalize_parallel_sessions(profile.get("parallel_sessions")),
         "parallel_options": PARALLEL_OPTIONS,
         "can_summarize": can_summarize,

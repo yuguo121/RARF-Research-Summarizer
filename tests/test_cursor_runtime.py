@@ -136,7 +136,7 @@ def test_stream_collection_times_out():
 def _external_settings(model_id="grok-4.6"):
     return {
         "model": {"backend": "external", "required_id_substrings": ["grok", "4.6"]},
-        "external": {"base_url": "https://api.example.com/v1", "model_id": model_id, "api_key_env": "EXTERNAL_API_KEY"},
+        "external": {"base_url": "https://api.example.com/v1", "model_id": model_id},
     }
 
 
@@ -148,9 +148,8 @@ def test_make_backend_local_uses_cursor_sdk(monkeypatch):
 
 def test_make_backend_external_missing_key_fails_closed(monkeypatch):
     monkeypatch.delenv("EXTERNAL_API_KEY", raising=False)
-    monkeypatch.delenv("EXTERNAL_BASE_URL", raising=False)
-    monkeypatch.delenv("EXTERNAL_MODEL_ID", raising=False)
-    with pytest.raises(AgentStartupError, match="EXTERNAL_API_KEY"):
+    monkeypatch.delenv("EXAMPLE_API_KEY", raising=False)
+    with pytest.raises(AgentStartupError, match="EXAMPLE_API_KEY"):
         make_backend(_external_settings(), name="external")
 
 
@@ -179,18 +178,17 @@ def test_make_backend_external_accepts_deepseek_pro(monkeypatch):
     assert backend.resolve_model() == "deepseek-v4-pro"
 
 
-def test_make_backend_external_prefers_preset_api_key_env(monkeypatch):
+def test_make_backend_external_prefers_provider_key_env(monkeypatch):
     monkeypatch.delenv("EXTERNAL_API_KEY", raising=False)
-    monkeypatch.delenv("EXTERNAL_BASE_URL", raising=False)
-    monkeypatch.delenv("EXTERNAL_MODEL_ID", raising=False)
+    monkeypatch.delenv("ZHIPU_BASE_URL", raising=False)
     monkeypatch.setenv("ZHIPU_API_KEY", "zhipu-key")
     settings = _external_settings("glm-5.3-flash")
     settings["external"]["presets"] = [
         {
             "id": "glm-5.3-flash",
             "label": "GLM",
+            "provider": "zhipu",
             "base_url": "https://open.bigmodel.cn/api/paas/v4",
-            "api_key_env": "ZHIPU_API_KEY",
         }
     ]
     backend = make_backend(settings, name="external")
@@ -198,13 +196,22 @@ def test_make_backend_external_prefers_preset_api_key_env(monkeypatch):
     assert backend.api_key == "zhipu-key"
 
 
-def test_make_backend_external_missing_preset_key_names_vendor_env(monkeypatch):
+def test_make_backend_external_provider_base_url_env_override(monkeypatch):
     monkeypatch.delenv("EXTERNAL_API_KEY", raising=False)
-    monkeypatch.delenv("EXTERNAL_BASE_URL", raising=False)
-    monkeypatch.delenv("EXTERNAL_MODEL_ID", raising=False)
-    monkeypatch.delenv("ZHIPU_API_KEY", raising=False)
+    monkeypatch.setenv("ZHIPU_API_KEY", "zhipu-key")
+    monkeypatch.setenv("ZHIPU_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
     settings = _external_settings("glm-5.3-flash")
-    settings["external"]["presets"] = [{"id": "glm-5.3-flash", "api_key_env": "ZHIPU_API_KEY"}]
+    settings["external"]["presets"] = [{"id": "glm-5.3-flash", "provider": "zhipu"}]
+    backend = make_backend(settings, name="external")
+    assert backend.settings["external"]["base_url"] == "https://open.bigmodel.cn/api/paas/v4"
+
+
+def test_make_backend_external_missing_provider_key_names_vendor_env(monkeypatch):
+    monkeypatch.delenv("EXTERNAL_API_KEY", raising=False)
+    monkeypatch.delenv("ZHIPU_API_KEY", raising=False)
+    monkeypatch.delenv("ZHIPU_BASE_URL", raising=False)
+    settings = _external_settings("glm-5.3-flash")
+    settings["external"]["presets"] = [{"id": "glm-5.3-flash", "provider": "zhipu"}]
     with pytest.raises(AgentStartupError, match="ZHIPU_API_KEY"):
         make_backend(settings, name="external")
 
