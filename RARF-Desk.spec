@@ -5,7 +5,7 @@ a = Analysis(
     ['src/rarf_summarizer/desk.py'],
     pathex=['src'],
     binaries=[],
-    datas=[('src/rarf_summarizer/web', ' rarf_summarizer/web'), ('config', ' config')],
+    datas=[('src/rarf_summarizer/web', 'rarf_summarizer/web'), ('config', 'config')],
     hiddenimports=['cursor_sdk', 'pdfplumber', 'pypdf', 'openpyxl', 'yaml', 'pydantic'],
     hookspath=[],
     hooksconfig={},
