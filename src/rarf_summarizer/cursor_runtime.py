@@ -579,8 +579,21 @@ def make_backend(settings: dict[str, Any], *, name: str | None = None, injected=
     merged["external"] = ext
     kind = (name or (merged.get("model") or {}).get("backend") or "local").casefold()
     if kind == "external":
-        env_name = str(ext.get("api_key_env") or "EXTERNAL_API_KEY")
-        api_key = os.environ.get(env_name) or os.environ.get("EXTERNAL_API_KEY")
+        model_id = str(ext.get("model_id") or "").strip()
+        presets = ext.get("presets") or []
+        preset = next((p for p in presets if str(p.get("id") or "") == model_id), {})
+        env_candidates: list[str] = []
+        for candidate in (preset.get("api_key_env"), ext.get("api_key_env"), "EXTERNAL_API_KEY"):
+            candidate = str(candidate or "").strip()
+            if candidate and candidate not in env_candidates:
+                env_candidates.append(candidate)
+        env_name = env_candidates[0] if env_candidates else "EXTERNAL_API_KEY"
+        api_key = ""
+        for candidate in env_candidates:
+            value = str(os.environ.get(candidate) or "").strip()
+            if value:
+                env_name, api_key = candidate, value
+                break
         base_url = str(ext.get("base_url") or "").strip()
         if not base_url:
             raise AgentStartupError("external.base_url is not set")

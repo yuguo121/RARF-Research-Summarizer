@@ -28,10 +28,10 @@ from rarf_summarizer.summarizer import paper_id_for
 WEB_DIR = Path(__file__).resolve().parent / "web"
 DEFAULT_EXTERNAL_BASE_URL = "https://api.deepseek.com"
 DEFAULT_EXTERNAL_PRESETS = [
-    {"id": "glm-5.3-flash", "label": "智谱 GLM-5.3 Flash", "base_url": "https://open.bigmodel.cn/api/paas/v4"},
-    {"id": "glm-5.3", "label": "智谱 GLM-5.3", "base_url": "https://open.bigmodel.cn/api/paas/v4"},
-    {"id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "base_url": "https://api.deepseek.com"},
-    {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "base_url": "https://api.deepseek.com"},
+    {"id": "glm-5.3-flash", "label": "智谱 GLM-5.3 Flash", "base_url": "https://open.bigmodel.cn/api/paas/v4", "api_key_env": "ZHIPU_API_KEY"},
+    {"id": "glm-5.3", "label": "智谱 GLM-5.3", "base_url": "https://open.bigmodel.cn/api/paas/v4", "api_key_env": "ZHIPU_API_KEY"},
+    {"id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "base_url": "https://api.deepseek.com", "api_key_env": "DEEPSEEK_API_KEY"},
+    {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "base_url": "https://api.deepseek.com", "api_key_env": "DEEPSEEK_API_KEY"},
 ]
 
 
@@ -186,7 +186,13 @@ def _handler_for(ctx: dict):
                     )
                 env_updates: dict[str, str] = {}
                 if api_key:
-                    key_name = "EXTERNAL_API_KEY" if backend == "external" else "CURSOR_API_KEY"
+                    if backend == "external":
+                        ext_cfg = pipeline.settings.get("external") or {}
+                        presets = ext_cfg.get("presets") or DEFAULT_EXTERNAL_PRESETS
+                        preset = next((p for p in presets if str(p.get("id") or "") == model_id), {})
+                        key_name = str(preset.get("api_key_env") or ext_cfg.get("api_key_env") or "EXTERNAL_API_KEY")
+                    else:
+                        key_name = "CURSOR_API_KEY"
                     env_updates[key_name] = api_key
                     os.environ[key_name] = api_key
                 if base_url:
@@ -390,12 +396,18 @@ def _backend_status(pipeline: Pipeline, profile: dict | None = None) -> dict:
     profile = profile or load_profile(pipeline.root)
     backend = str(profile.get("backend") or "local").casefold()
     ext = pipeline.settings.get("external") or {}
-    env_name = str(ext.get("api_key_env") or "EXTERNAL_API_KEY")
     base_url = (os.environ.get("EXTERNAL_BASE_URL") or ext.get("base_url") or "").strip()
     model_id = (os.environ.get("EXTERNAL_MODEL_ID") or ext.get("model_id") or "").strip()
     presets = ext.get("presets") or DEFAULT_EXTERNAL_PRESETS
+    preset = next((p for p in presets if str(p.get("id") or "") == model_id), {})
+    env_candidates: list[str] = []
+    for candidate in (preset.get("api_key_env"), ext.get("api_key_env"), "EXTERNAL_API_KEY"):
+        candidate = str(candidate or "").strip()
+        if candidate and candidate not in env_candidates:
+            env_candidates.append(candidate)
+    env_name = env_candidates[0] if env_candidates else "EXTERNAL_API_KEY"
     has_api_key = bool(os.environ.get("CURSOR_API_KEY"))
-    has_external_key = bool(os.environ.get(env_name) or os.environ.get("EXTERNAL_API_KEY"))
+    has_external_key = any(os.environ.get(name) for name in env_candidates)
     if backend == "external":
         local_host = any(token in base_url.casefold() for token in ("localhost", "127.0.0.1", "0.0.0.0", "::1"))
         can_summarize = bool(base_url) and (has_external_key or local_host)
@@ -405,7 +417,9 @@ def _backend_status(pipeline: Pipeline, profile: dict | None = None) -> dict:
         if not base_url:
             missing.append("external.base_url")
         message = (
-            "External API is selected but " + " and ".join(missing) + " are missing. Extract still works."
+            "External API is selected but "
+            + " and ".join(missing)
+            + (" is missing. Extract still works." if len(missing) == 1 else " are missing. Extract still works.")
             if missing
             else ""
         )

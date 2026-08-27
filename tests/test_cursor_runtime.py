@@ -179,6 +179,36 @@ def test_make_backend_external_accepts_deepseek_pro(monkeypatch):
     assert backend.resolve_model() == "deepseek-v4-pro"
 
 
+def test_make_backend_external_prefers_preset_api_key_env(monkeypatch):
+    monkeypatch.delenv("EXTERNAL_API_KEY", raising=False)
+    monkeypatch.delenv("EXTERNAL_BASE_URL", raising=False)
+    monkeypatch.delenv("EXTERNAL_MODEL_ID", raising=False)
+    monkeypatch.setenv("ZHIPU_API_KEY", "zhipu-key")
+    settings = _external_settings("glm-5.3-flash")
+    settings["external"]["presets"] = [
+        {
+            "id": "glm-5.3-flash",
+            "label": "GLM",
+            "base_url": "https://open.bigmodel.cn/api/paas/v4",
+            "api_key_env": "ZHIPU_API_KEY",
+        }
+    ]
+    backend = make_backend(settings, name="external")
+    assert isinstance(backend, ExternalChatBackend)
+    assert backend.api_key == "zhipu-key"
+
+
+def test_make_backend_external_missing_preset_key_names_vendor_env(monkeypatch):
+    monkeypatch.delenv("EXTERNAL_API_KEY", raising=False)
+    monkeypatch.delenv("EXTERNAL_BASE_URL", raising=False)
+    monkeypatch.delenv("EXTERNAL_MODEL_ID", raising=False)
+    monkeypatch.delenv("ZHIPU_API_KEY", raising=False)
+    settings = _external_settings("glm-5.3-flash")
+    settings["external"]["presets"] = [{"id": "glm-5.3-flash", "api_key_env": "ZHIPU_API_KEY"}]
+    with pytest.raises(AgentStartupError, match="ZHIPU_API_KEY"):
+        make_backend(settings, name="external")
+
+
 def test_external_backend_salvages_json(monkeypatch, tmp_path):
     monkeypatch.setenv("EXTERNAL_API_KEY", "ext-key")
     monkeypatch.delenv("EXTERNAL_MODEL_ID", raising=False)

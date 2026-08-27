@@ -29,10 +29,16 @@ def test_desk_html_has_backend_picker_and_cell_drawer():
 def test_backend_status_external_missing_key_disables_summarize(monkeypatch):
     pipeline = Pipeline()
     monkeypatch.delenv("EXTERNAL_API_KEY", raising=False)
+    monkeypatch.delenv("ZHIPU_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("EXTERNAL_MODEL_ID", raising=False)
     status = _backend_status(pipeline, {"backend": "external", "enabled": [], "instructions": {}})
     assert status["backend"] == "external"
     assert status["can_summarize"] is False
-    assert "EXTERNAL_API_KEY" in status["backend_message"]
+    model_id = status["external_model_id"]
+    presets = status["external_presets"]
+    expected_env = next((p.get("api_key_env") for p in presets if p.get("id") == model_id), None) or "EXTERNAL_API_KEY"
+    assert expected_env in status["backend_message"]
 
 
 def test_overview_uses_effective_text(tmp_path):

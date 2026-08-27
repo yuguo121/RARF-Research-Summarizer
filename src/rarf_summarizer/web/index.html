@@ -985,7 +985,7 @@
       <div class="form-group" id="fgExtKey" style="display:none">
         <label for="inputExtKey">API Key（本地服务可留空）</label>
         <input type="password" id="inputExtKey" placeholder="sk-…" autocomplete="off" />
-        <div class="help">在对应平台申请（bigmodel.cn / platform.deepseek.com 等），本地服务可留空。已保存时留空即可。</div>
+        <div class="help" id="extKeyHelp">各厂商 key 分开保存（智谱 ZHIPU_API_KEY、DeepSeek DEEPSEEK_API_KEY）。已保存时留空即可。</div>
       </div>
       <div class="form-group" id="fgModelPick" style="display:none">
         <label>模型预设（或在下方手动填 Base URL / Model ID）</label>
@@ -1116,6 +1116,8 @@
       modalModel = preset ? preset.id : (id || "");
       $("inputModelId").value = modalModel;
       if (preset && preset.base_url) $("inputBaseUrl").value = preset.base_url;
+      const envName = (preset && preset.api_key_env) || "EXTERNAL_API_KEY";
+      $("extKeyHelp").textContent = `保存后写入 ${envName}（各厂商 key 分开保存）。本地服务可留空；已保存时留空即可。`;
       document.querySelectorAll("#modelCards .mode-card").forEach((el) => {
         el.classList.toggle("selected", el.dataset.model === modalModel);
       });

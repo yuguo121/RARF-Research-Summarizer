@@ -27,20 +27,24 @@ external:
     - id: glm-5.3-flash
       label: 智谱 GLM-5.3 Flash
       base_url: https://open.bigmodel.cn/api/paas/v4
+      api_key_env: ZHIPU_API_KEY
       temperature: 1
       top_p: 0.95
     - id: glm-5.3
       label: 智谱 GLM-5.3
       base_url: https://open.bigmodel.cn/api/paas/v4
+      api_key_env: ZHIPU_API_KEY
       temperature: 1
       top_p: 0.95
     - id: deepseek-v4-flash
       label: DeepSeek V4 Flash
       base_url: https://api.deepseek.com
+      api_key_env: DEEPSEEK_API_KEY
       temperature: 0
     - id: deepseek-v4-pro
       label: DeepSeek V4 Pro
       base_url: https://api.deepseek.com
+      api_key_env: DEEPSEEK_API_KEY
       temperature: 0
   parallel_sessions: 5
 zotero:
