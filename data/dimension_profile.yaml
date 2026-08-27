@@ -1,23 +1,9 @@
 enabled:
-- citation
-- research_type
 - research_question
 - why_important
 - framing
 - key_argument
 - theoretical_lenses
-- hypotheses
-- key_variables
-- context
-- unit_of_analysis
-- sampling_strategy
-- sample
-- sample_type
-- data_sources
-- measures
-- statistical_models
-- endogeneity
-- findings
 - contribution
 - limitations
 - so_what
@@ -43,4 +29,4 @@ instructions:
     \ significance\n  levels, sample and method descriptions.\n- If a sentence mixes\
     \ theory and evidence, extract only the\n  theoretical clause."
 backend: external
-parallel_sessions: 50
+parallel_sessions: 100

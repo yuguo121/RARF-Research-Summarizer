@@ -33,6 +33,17 @@ def _redirect_headless_log(project_root: Path | None) -> None:
     sys.stderr = handle
 
 
+def _find_project_root() -> Path | None:
+    candidates = [Path.cwd()]
+    if getattr(sys, "frozen", False):
+        candidates.append(Path(sys.executable).resolve().parent)
+    for base in candidates:
+        for directory in [base, *base.parents]:
+            if (directory / "config" / "settings.yaml").is_file():
+                return directory
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(argv if argv is not None else sys.argv[1:])
     if "--help" in argv or "-h" in argv:
@@ -55,9 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     if args:
         port = int(args[0])
     if project_root is None:
-        # When launched from an installed console script, cwd may not be the project.
-        candidate = Path.cwd()
-        project_root = candidate if (candidate / "config" / "settings.yaml").is_file() else None
+        project_root = _find_project_root()
     _redirect_headless_log(project_root)
     port = _free_port(port)
     try:
