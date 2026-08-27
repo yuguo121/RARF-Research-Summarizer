@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import queue
+import random
 import sys
 import threading
 import time
@@ -533,14 +534,28 @@ class ExternalChatBackend:
             method="POST",
         )
         timeout = float(self.settings.get("stream_timeout_seconds") or 720)
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                body = json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")[:2000]
-            raise AgentRunError(f"{session} external API HTTP {exc.code}: {detail}") from exc
-        except Exception as exc:
-            raise AgentStartupError(f"{session} external API failed: {exc}") from exc
+        max_attempts = int(ext.get("max_retries") or 6)
+        base_delay = float(ext.get("retry_base_seconds") or 4)
+        body: dict[str, Any] = {}
+        for attempt in range(1, max_attempts + 1):
+            try:
+                with urllib.request.urlopen(request, timeout=timeout) as response:
+                    body = json.loads(response.read().decode("utf-8"))
+                break
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")[:2000]
+                retryable = exc.code == 429 or 500 <= exc.code < 600
+                if not retryable or attempt >= max_attempts:
+                    raise AgentRunError(f"{session} external API HTTP {exc.code}: {detail}") from exc
+                delay = _retry_delay(exc, base_delay, attempt)
+                print(f"{session} external API HTTP {exc.code}; retry {attempt}/{max_attempts - 1} in {delay:.0f}s")
+                time.sleep(delay)
+            except Exception as exc:
+                if attempt >= max_attempts:
+                    raise AgentStartupError(f"{session} external API failed: {exc}") from exc
+                delay = _retry_delay(None, base_delay, attempt)
+                print(f"{session} external API error ({exc}); retry {attempt}/{max_attempts - 1} in {delay:.0f}s")
+                time.sleep(delay)
         choices = body.get("choices") or []
         message = (choices[0].get("message") if choices else {}) or {}
         text = message.get("content") or body.get("text") or ""
@@ -564,6 +579,19 @@ class ExternalChatBackend:
 def _is_local_base(base_url: str) -> bool:
     host = base_url.casefold()
     return any(token in host for token in ("localhost", "127.0.0.1", "0.0.0.0", "::1"))
+
+
+def _retry_delay(exc: Exception | None, base: float, attempt: int) -> float:
+    """Exponential backoff with jitter; honors the Retry-After header when present."""
+    headers = getattr(exc, "headers", None)
+    if headers:
+        raw = headers.get("Retry-After")
+        if raw:
+            try:
+                return min(max(float(raw), 1.0), 120.0)
+            except (TypeError, ValueError):
+                pass
+    return min(base * (2 ** (attempt - 1)) * (0.5 + random.random()), 120.0)
 
 
 def make_backend(settings: dict[str, Any], *, name: str | None = None, injected=None):

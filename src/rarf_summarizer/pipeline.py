@@ -268,7 +268,25 @@ class Pipeline:
             return 1
         profile = load_profile(self.root)
         cap = profile.get("parallel_sessions") or (self.settings.get("external") or {}).get("parallel_sessions") or 5
-        return parallel_workers(cap)
+        workers = parallel_workers(cap)
+        provider_cap = self._provider_parallel_cap()
+        if provider_cap and workers > provider_cap:
+            print(f"parallel sessions capped at {provider_cap} by the active provider's limit (requested <{cap})")
+            workers = provider_cap
+        return workers
+
+    def _provider_parallel_cap(self) -> int | None:
+        """Per-provider concurrency ceiling from the active preset (or external.max_parallel)."""
+        ext = self.settings.get("external") or {}
+        presets = ext.get("presets") or []
+        model_id = str(ext.get("model_id") or "").strip()
+        preset = next((p for p in presets if str(p.get("id") or "") == model_id), {})
+        raw = preset.get("max_parallel", ext.get("max_parallel"))
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
 
     def _missing_field_ids(self, paper_id: str, schema: Schema) -> list[str]:
         """Fields with no usable text yet (neither generated nor human)."""

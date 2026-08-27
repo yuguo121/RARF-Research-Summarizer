@@ -44,6 +44,23 @@ def test_backend_status_external_missing_key_disables_summarize(monkeypatch):
     assert expected_env in status["backend_message"]
 
 
+def test_parallel_workers_respects_provider_cap(monkeypatch):
+    pipeline = Pipeline()
+    pipeline.settings = {
+        "external": {
+            "model_id": "glm-5.3-flash",
+            "presets": [{"id": "glm-5.3-flash", "provider": "zhipu", "max_parallel": 10}],
+        }
+    }
+    monkeypatch.setattr(
+        "rarf_summarizer.pipeline.load_profile",
+        lambda root: {"backend": "external", "parallel_sessions": 100},
+    )
+    assert pipeline._parallel_workers() == 10
+    pipeline.settings["external"]["presets"] = [{"id": "glm-5.3-flash", "provider": "zhipu"}]
+    assert pipeline._parallel_workers() == 99
+
+
 def test_overview_uses_effective_text(tmp_path):
     pipeline = Pipeline()
     pipeline.store = Store(tmp_path / "rarf.sqlite")

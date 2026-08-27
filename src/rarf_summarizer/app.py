@@ -28,10 +28,10 @@ from rarf_summarizer.summarizer import paper_id_for
 WEB_DIR = Path(__file__).resolve().parent / "web"
 DEFAULT_EXTERNAL_BASE_URL = "https://api.deepseek.com"
 DEFAULT_EXTERNAL_PRESETS = [
-    {"id": "glm-5.3-flash", "label": "智谱 GLM-5.3 Flash", "provider": "zhipu", "base_url": "https://open.bigmodel.cn/api/paas/v4"},
-    {"id": "glm-5.3", "label": "智谱 GLM-5.3", "provider": "zhipu", "base_url": "https://open.bigmodel.cn/api/paas/v4"},
-    {"id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "provider": "deepseek", "base_url": "https://api.deepseek.com"},
-    {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "provider": "deepseek", "base_url": "https://api.deepseek.com"},
+    {"id": "glm-5.3-flash", "label": "智谱 GLM-5.3 Flash", "provider": "zhipu", "base_url": "https://open.bigmodel.cn/api/paas/v4", "max_parallel": 10},
+    {"id": "glm-5.3", "label": "智谱 GLM-5.3", "provider": "zhipu", "base_url": "https://open.bigmodel.cn/api/paas/v4", "max_parallel": 10},
+    {"id": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "provider": "deepseek", "base_url": "https://api.deepseek.com", "max_parallel": 50},
+    {"id": "deepseek-v4-pro", "label": "DeepSeek V4 Pro", "provider": "deepseek", "base_url": "https://api.deepseek.com", "max_parallel": 50},
 ]
 
 
