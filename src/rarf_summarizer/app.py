@@ -18,9 +18,8 @@ from rarf_summarizer.dimension_profile import (
     schema_from_profile,
 )
 from rarf_summarizer.formatting import effective_text
-from rarf_summarizer.paths import load_settings, provider_slug, update_dotenv
+from rarf_summarizer.paths import load_settings, provider_slug, save_settings, update_dotenv
 from rarf_summarizer.pipeline import Pipeline
-from rarf_summarizer.schema import load_schema
 from rarf_summarizer.selection import collect_pdfs, id_root_for, list_directory, windows_drives
 from rarf_summarizer.summarizer import paper_id_for
 
@@ -105,7 +104,7 @@ def serve(port: int = 8765, open_browser: bool = True, project_root: Path | None
     server = DeskServer(("127.0.0.1", port), handler)
     ctx["server"] = server
     url = f"http://127.0.0.1:{port}/"
-    print(f"RARF desk at {url}", flush=True)
+    print(f"{pipeline.schema.name} desk at {url}", flush=True)
     if open_browser:
         webbrowser.open(url)
     try:
@@ -206,6 +205,10 @@ def _handler_for(ctx: dict):
                         ext["base_url"] = base_url
                     if model_id:
                         ext["model_id"] = model_id
+                    save_settings(
+                        pipeline.root,
+                        {"external": {k: ext[k] for k in ("provider", "base_url", "model_id") if k in ext}},
+                    )
                 elif api_key:
                     env_updates["CURSOR_API_KEY"] = api_key
                     os.environ["CURSOR_API_KEY"] = api_key
@@ -215,6 +218,7 @@ def _handler_for(ctx: dict):
                 if zotero_export or "zotero_export" in payload:
                     zotero = pipeline.settings.setdefault("zotero", {})
                     zotero["export_path"] = zotero_export
+                    save_settings(pipeline.root, {"zotero": {"export_path": zotero_export}})
                     pipeline._zotero_rows = None
                     pipeline._zotero_failed = False
                 self._send_json({"ok": True, "state": _state_payload(pipeline)})
@@ -369,7 +373,7 @@ def _handler_for(ctx: dict):
 
 
 def _state_payload(pipeline: Pipeline) -> dict:
-    base = load_schema(pipeline.root / "config" / "rarf_schema.yaml")
+    base = pipeline.schema
     profile = load_profile(pipeline.root)
     status = _backend_status(pipeline, profile)
     return {
@@ -388,6 +392,9 @@ def _state_payload(pipeline: Pipeline) -> dict:
         "parallel_sessions": status.get("parallel_sessions", 5),
         "parallel_options": PARALLEL_OPTIONS,
         "fields": base.as_dict(),
+        "schema_name": base.name,
+        "schema_name_short": base.name_short or "",
+        "groups": base.groups_as_dict(),
         "profile": profile,
         "drives": windows_drives(),
         "zotero": pipeline.settings.get("zotero") or {},
@@ -505,6 +512,8 @@ def _overview_payload(pipeline: Pipeline) -> dict:
     groups = sorted({str(row.get("folder")) for row in rows if row.get("folder")})
     return {
         "fields": schema.as_dict(),
+        "groups": schema.groups_as_dict(),
+        "schema_name": schema.name,
         "rows": rows,
         "facets": {"years": years, "publications": publications, "statuses": statuses, "groups": groups},
     }
@@ -549,13 +558,16 @@ def _browse(pipeline: Pipeline, raw: str) -> dict:
 
 
 def _shortcuts(pipeline: Pipeline) -> list[dict[str, str]]:
-    items = [
-        {"name": "默认文献夹", "path": str(pipeline.default_folder)},
-        {"name": "项目目录", "path": str(pipeline.root)},
-    ]
-    zotero = pipeline.default_folder.parent.parent if pipeline.default_folder.parent else None
-    if zotero and zotero.exists():
-        items.insert(1, {"name": "Zotero", "path": str(zotero)})
+    items = []
+    default = pipeline.default_folder
+    if default.exists():
+        items.append({"key": "default_folder", "name": "默认文献夹", "path": str(default)})
+        # Offer the parent library folder only when it looks like a real PDF collection.
+        for ancestor in [default.parent, default.parent.parent if default.parent.parent != default.parent else None]:
+            if ancestor and ancestor.exists() and any(ancestor.glob("*.pdf")):
+                items.append({"key": "", "name": ancestor.name or str(ancestor), "path": str(ancestor)})
+                break
+    items.append({"key": "project_root", "name": "项目目录", "path": str(pipeline.root)})
     return items
 
 

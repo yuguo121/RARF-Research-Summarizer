@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RARF Desk</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='3' width='24' height='26' rx='4' fill='%232d6a5a'/%3E%3Crect x='9' y='9' width='14' height='2.6' rx='1.3' fill='%23f6f5f1'/%3E%3Crect x='9' y='14.5' width='14' height='2.6' rx='1.3' fill='%23f6f5f1' opacity='.75'/%3E%3Crect x='9' y='20' width='9' height='2.6' rx='1.3' fill='%23f6f5f1' opacity='.5'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -53,6 +54,16 @@
       z-index: 10;
     }
     .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand .logo {
+      width: 26px;
+      height: 26px;
+      flex-shrink: 0;
+    }
+    .brand .brand-text {
       display: flex;
       align-items: baseline;
       gap: 10px;
@@ -126,6 +137,56 @@
     }
     button.ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
     button.sm { padding: 4px 10px; font-size: 12px; }
+    .lang-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .lang-toggle button {
+      border: none;
+      border-radius: 0;
+      padding: 5px 10px;
+      font-size: 12px;
+      background: var(--surface);
+      color: var(--muted);
+    }
+    .lang-toggle button.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .spinner {
+      display: inline-block;
+      width: 11px;
+      height: 11px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: -1px;
+      margin-right: 6px;
+    }
+    button:not(.primary) .spinner { border-color: var(--border-strong); border-top-color: var(--muted); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state {
+      padding: 42px 24px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .empty-state .empty-icon {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 12px;
+      opacity: 0.45;
+    }
+    .empty-state .empty-title {
+      font-family: "Noto Serif SC", serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink-2);
+      margin-bottom: 4px;
+    }
+    .empty-state .empty-sub { font-size: 12.5px; }
 
     /* ── Layout ──────────────────────────────── */
     .main {
@@ -290,6 +351,7 @@
       border: 1px solid var(--border);
       color: var(--muted);
     }
+    .badge { color: var(--muted); }
     .badge.theory { color: var(--accent); border-color: #c8ddd6; background: var(--accent-soft); }
     .badge.method { color: var(--gold); border-color: #e8dcc0; background: var(--gold-soft); }
     .dim-prompt { display: none; padding-top: 8px; }
@@ -544,13 +606,8 @@
       width: 8px;
       height: 8px;
       border-radius: 2px;
-      background: var(--border-strong);
+      background: var(--group-color, var(--border-strong));
     }
-    .focus-nav .nav-group[data-group="identity"]::before { background: #1F4E79; }
-    .focus-nav .nav-group[data-group="theory"]::before { background: #196F3D; }
-    .focus-nav .nav-group[data-group="constructs"]::before { background: #7D3C98; }
-    .focus-nav .nav-group[data-group="method"]::before { background: #B7950B; }
-    .focus-nav .nav-group[data-group="implications"]::before { background: #922B21; }
     .focus-nav .nav-item {
       display: block;
       width: 100%;
@@ -806,64 +863,69 @@
   <!-- Top bar -->
   <div class="topbar">
     <div class="brand">
-      <h1>RARF Desk</h1>
-      <span>Research Article Review Form</span>
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="3" width="24" height="26" rx="4" fill="#2d6a5a"/><rect x="9" y="9" width="14" height="2.6" rx="1.3" fill="#f6f5f1"/><rect x="9" y="14.5" width="14" height="2.6" rx="1.3" fill="#f6f5f1" opacity=".75"/><rect x="9" y="20" width="9" height="2.6" rx="1.3" fill="#f6f5f1" opacity=".5"/></svg>
+      <div class="brand-text">
+        <h1 id="brandName">RARF Desk</h1>
+        <span id="brandSub">Research Article Review Form</span>
+      </div>
     </div>
     <div class="topbar-right">
-      <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">检查中…</span></span>
-      <button class="settings-btn" id="zoteroBtn" type="button">Zotero 库</button>
-      <button class="settings-btn" id="quitBtn" type="button">退出</button>
+      <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText" data-i18n="statusChecking">检查中…</span></span>
+      <span class="lang-toggle">
+        <button type="button" id="langZh">中</button>
+        <button type="button" id="langEn">EN</button>
+      </span>
+      <button class="settings-btn" id="zoteroBtn" type="button" data-i18n="zoteroLibrary">Zotero 库</button>
+      <button class="settings-btn" id="quitBtn" type="button" data-i18n="quit">退出</button>
       <button class="settings-btn" id="settingsBtn" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        设置
+        <span data-i18n="settings">设置</span>
       </button>
     </div>
   </div>
 
   <!-- Tabs -->
   <div class="tabs">
-    <button type="button" class="tab-btn active" data-tab="extract">Summarize</button>
-    <button type="button" class="tab-btn" data-tab="summary">Summary</button>
+    <button type="button" class="tab-btn active" data-tab="extract" data-i18n="tabSummarize">Summarize</button>
+    <button type="button" class="tab-btn" data-tab="summary" data-i18n="tabSummary">Summary</button>
   </div>
 
   <!-- Main two-column (extract tab) -->
   <div class="main tab-panel active" id="tab-extract">
     <!-- File browser -->
     <div class="card">
-      <div class="card-header"><h2>文献柜</h2></div>
-      <div class="shortcuts"><button type="button" class="sm" id="pickFilesBtn">用文件管理器选 PDF…</button><span class="hint">弹出系统选择窗口，可跨文件夹多选批量加入</span></div>
+      <div class="card-header"><h2 data-i18n="libraryTitle">文献柜</h2></div>
+      <div class="shortcuts"><button type="button" class="sm" id="pickFilesBtn" data-i18n="pickFiles">用文件管理器选 PDF…</button><span class="hint" data-i18n="pickFilesHint">弹出系统选择窗口，可跨文件夹多选批量加入</span></div>
       <div class="shortcuts" id="shortcuts"></div>
       <div class="crumbs" id="crumbs"></div>
-      <div class="hint">点文件夹进入；勾选 PDF，或把整个文件夹加入清单。Excel 会列出库中全部已抽取论文，不只是这次勾选的。</div>
+      <div class="hint" data-i18n="browseHint">点文件夹进入；勾选 PDF，或把整个文件夹加入清单。Excel 会列出库中全部已抽取论文，不只是这次勾选的。</div>
       <div class="card-body file-list" id="listing"></div>
       <div class="selected-bar">
-        <b>已选</b> <span id="selectedCount">0 项</span>
+        <b data-i18n="selectedLabel">已选</b> <span id="selectedCount">0</span>
         <div id="selectedList"></div>
       </div>
     </div>
 
     <!-- Dimensions -->
     <div class="card">
-      <div class="card-header"><h2>维度与提问词</h2></div>
-      <div class="presets">
-        <button type="button" class="sm" data-preset="all">全选</button>
-        <button type="button" class="sm" data-preset="none">全不选</button>
-        <button type="button" class="sm" data-preset="theory">只要理论</button>
-        <button type="button" class="sm" data-preset="method">只要方法</button>
-        <button type="button" class="sm" id="saveProfile">保存提问词</button>
+      <div class="card-header"><h2 data-i18n="dimsTitle">维度与提问词</h2></div>
+      <div class="presets" id="dimPresets">
+        <button type="button" class="sm" data-preset="all" data-i18n="presetAll">全选</button>
+        <button type="button" class="sm" data-preset="none" data-i18n="presetNone">全不选</button>
+        <button type="button" class="sm" id="saveProfile" data-i18n="savePrompts">保存提问词</button>
       </div>
       <div class="card-body dim-list" id="dims"></div>
       <div class="card-footer">
         <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;">
-          <input type="checkbox" id="force" /> 强制重跑
+          <input type="checkbox" id="force" /> <span data-i18n="forceRerun">强制重跑</span>
         </label>
-        <button type="button" id="previewBtn">清点 PDF</button>
-        <button type="button" id="extractBtn">只抽取文本</button>
-        <button type="button" class="primary" id="runBtn">抽取并总结</button>
-        <button type="button" id="exportBtn">导出 Excel</button>
-        <button type="button" class="ghost" id="openBtn">打开结果</button>
+        <button type="button" id="previewBtn" data-i18n="previewBtn">清点 PDF</button>
+        <button type="button" id="extractBtn" data-i18n="extractBtn">只抽取文本</button>
+        <button type="button" class="primary" id="runBtn" data-i18n="runBtn">抽取并总结</button>
+        <button type="button" id="exportBtn" data-i18n="exportBtn">导出 Excel</button>
+        <button type="button" class="ghost" id="openBtn" data-i18n="openBtn">打开结果</button>
       </div>
-      <div class="log-box" id="log">待命。选择文件夹或 PDF，勾选维度，需要时改提问词。</div>
+      <div class="log-box" id="log" data-i18n="logIdle">待命。选择文件夹或 PDF，勾选维度，需要时改提问词。</div>
     </div>
   </div>
 
@@ -871,23 +933,23 @@
   <div class="summary-section tab-panel" id="tab-summary">
     <div class="card summary-card" style="max-height:70vh">
       <div class="card-header">
-        <h2>Summary</h2>
+        <h2 data-i18n="tabSummary">Summary</h2>
         <div>
-          <button type="button" class="sm" id="refreshOverview">刷新格子</button>
+          <button type="button" class="sm" id="refreshOverview" data-i18n="refreshGrid">刷新格子</button>
         </div>
       </div>
-      <div class="hint">点击格子聚焦查看；再点「编辑 / 重跑」改稿。Excel 会列出库中全部已抽取论文。</div>
+      <div class="hint" data-i18n="summaryHint">点击格子聚焦查看；再点「编辑 / 重跑」改稿。Excel 会列出库中全部已抽取论文。</div>
       <div class="overview-toolbar">
-        <input type="search" id="overviewSearch" placeholder="搜索标题 / 作者…" />
-        <select id="filterYear"><option value="">全部年份</option></select>
-        <select id="filterPub"><option value="">全部期刊</option></select>
-        <select id="filterStatus"><option value="">全部状态</option></select>
-        <select id="filterGroup"><option value="">全部文件夹</option></select>
+        <input type="search" id="overviewSearch" data-i18n-ph="searchPh" placeholder="搜索标题 / 作者…" />
+        <select id="filterYear"><option value="" data-i18n="allYears">全部年份</option></select>
+        <select id="filterPub"><option value="" data-i18n="allPubs">全部期刊</option></select>
+        <select id="filterStatus"><option value="" data-i18n="allStatuses">全部状态</option></select>
+        <select id="filterGroup"><option value="" data-i18n="allFolders">全部文件夹</option></select>
         <select id="sortBy">
-          <option value="title">按标题</option>
-          <option value="year">按年份</option>
-          <option value="extracted_at">按抽取时间</option>
-          <option value="status">按状态</option>
+          <option value="title" data-i18n="sortTitle">按标题</option>
+          <option value="year" data-i18n="sortYear">按年份</option>
+          <option value="extracted_at" data-i18n="sortExtracted">按抽取时间</option>
+          <option value="status" data-i18n="sortStatus">按状态</option>
         </select>
         <select id="perPage">
           <option value="10">10 / 页</option>
@@ -895,10 +957,10 @@
           <option value="50">50 / 页</option>
         </select>
       </div>
-      <div class="overview-scroll" id="overview"><div class="hint" style="padding:18px">尚无抽取结果。</div></div>
+      <div class="overview-scroll" id="overview"><div class="hint" style="padding:18px" data-i18n="noResults">尚无抽取结果。</div></div>
       <div class="pager" id="overviewPager">
-        <button type="button" id="pagerPrev">‹ 上一页</button>
-        <button type="button" id="pagerNext">下一页 ›</button>
+        <button type="button" id="pagerPrev" data-i18n="pagerPrev">‹ 上一页</button>
+        <button type="button" id="pagerNext" data-i18n="pagerNext">下一页 ›</button>
         <span class="pager-info" id="pagerInfo"></span>
       </div>
     </div>
@@ -907,19 +969,19 @@
   <!-- Zotero import modal -->
   <div class="modal-overlay" id="zoteroOverlay">
     <div class="modal">
-      <h2>Zotero 库</h2>
-      <p class="sub">导入 Zotero 导出的 JSON / CSL JSON。只写入元数据（标题、作者、年份、期刊、DOI），不抽取 PDF、不调用模型。导入后可在 Summary 页看到全部文献，并逐格总结。</p>
+      <h2 data-i18n="zoteroLibrary">Zotero 库</h2>
+      <p class="sub" data-i18n="zoteroSub">导入 Zotero 导出的 JSON / CSL JSON。只写入元数据（标题、作者、年份、期刊、DOI），不抽取 PDF、不调用模型。导入后可在 Summary 页看到全部文献，并逐格总结。</p>
       <div class="form-group">
-        <label for="zoteroPath">导出文件路径</label>
+        <label for="zoteroPath" data-i18n="zoteroPathLabel">导出文件路径</label>
         <input type="text" id="zoteroPath" placeholder="…\zotero-export.json" />
       </div>
       <div class="form-group">
-        <label for="zoteroFile">或选择文件</label>
+        <label for="zoteroFile" data-i18n="zoteroFileLabel">或选择文件</label>
         <input type="file" id="zoteroFile" accept=".json,.rdf" />
       </div>
       <div class="modal-actions">
-        <button type="button" class="ghost" id="zoteroCancel">取消</button>
-        <button type="button" class="primary" id="zoteroImport">导入</button>
+        <button type="button" class="ghost" id="zoteroCancel" data-i18n="cancel">取消</button>
+        <button type="button" class="primary" id="zoteroImport" data-i18n="import">导入</button>
       </div>
     </div>
   </div>
@@ -939,8 +1001,8 @@
         <div class="focus-content" id="focusContent"></div>
       </div>
       <div class="focus-actions">
-        <button type="button" class="primary" id="focusEdit">编辑 / 重跑</button>
-        <button type="button" class="ghost" id="focusCloseBtn">关闭</button>
+        <button type="button" class="primary" id="focusEdit" data-i18n="editRerun">编辑 / 重跑</button>
+        <button type="button" class="ghost" id="focusCloseBtn" data-i18n="close">关闭</button>
       </div>
     </div>
   </div>
@@ -950,72 +1012,72 @@
   <aside class="drawer" id="drawer">
     <h3 id="drawerTitle">格子</h3>
     <div class="meta-line" id="drawerMeta"></div>
-    <label>当前文本</label>
+    <label data-i18n="drawerCurrent">当前文本</label>
     <textarea id="drawerText" class="grow"></textarea>
-    <label>提问词</label>
+    <label data-i18n="drawerPrompt">提问词</label>
     <textarea id="drawerInstruction"></textarea>
-    <label>补充说明</label>
-    <textarea id="drawerExtra" placeholder="可选：这次重跑要特别注意什么"></textarea>
+    <label data-i18n="drawerExtra">补充说明</label>
+    <textarea id="drawerExtra" data-i18n-ph="drawerExtraPh" placeholder="可选：这次重跑要特别注意什么"></textarea>
     <div class="actions">
-      <button type="button" class="primary" id="drawerSave">保存人工稿</button>
-      <button type="button" id="drawerRerun">按此提问词重跑并替换</button>
-      <button type="button" class="ghost" id="drawerClose">关闭</button>
+      <button type="button" class="primary" id="drawerSave" data-i18n="drawerSave">保存人工稿</button>
+      <button type="button" id="drawerRerun" data-i18n="drawerRerun">按此提问词重跑并替换</button>
+      <button type="button" class="ghost" id="drawerClose" data-i18n="close">关闭</button>
     </div>
   </aside>
 
   <!-- Settings modal -->
   <div class="modal-overlay" id="settingsOverlay">
     <div class="modal">
-      <h2>模型设置</h2>
-      <p class="sub">选择后端并填入 API key。保存在本地 <code>.env</code>，不会上传。</p>
+      <h2 data-i18n="settingsTitle">模型设置</h2>
+      <p class="sub" data-i18n="settingsSub">选择后端并填入 API key。保存在本地 .env，不会上传。</p>
       <div class="mode-cards">
         <div class="mode-card" id="modeLocal" data-mode="local">
           <div class="mode-name">Local Cursor Agent</div>
-          <div class="mode-desc">使用本机 Cursor SDK（默认）</div>
+          <div class="mode-desc" data-i18n="modeLocalDesc">使用本机 Cursor SDK（默认）</div>
         </div>
         <div class="mode-card" id="modeExternal" data-mode="external">
           <div class="mode-name">External API</div>
-          <div class="mode-desc">DeepSeek（Flash / Pro）</div>
+          <div class="mode-desc" data-i18n="modeExternalDesc">任意 OpenAI 兼容 API（GLM / DeepSeek…）</div>
         </div>
       </div>
       <div class="form-group" id="fgCursorKey">
         <label for="inputCursorKey">CURSOR_API_KEY</label>
         <input type="password" id="inputCursorKey" placeholder="cursor_…" autocomplete="off" />
-        <div class="help">Local 模式需要。已保存时留空即可。</div>
+        <div class="help" data-i18n="cursorKeyHelp">Local 模式需要。已保存时留空即可。</div>
       </div>
       <div class="form-group" id="fgExtKey" style="display:none">
-        <label for="inputExtKey">API Key（本地服务可留空）</label>
+        <label for="inputExtKey" data-i18n="extKeyLabel">API Key（本地服务可留空）</label>
         <input type="password" id="inputExtKey" placeholder="sk-…" autocomplete="off" />
         <div class="help" id="extKeyHelp">各厂商 key 分开保存（智谱 ZHIPU_API_KEY、DeepSeek DEEPSEEK_API_KEY）。已保存时留空即可。</div>
       </div>
       <div class="form-group" id="fgModelPick" style="display:none">
-        <label>模型预设（或在下方手动填 Base URL / Model ID）</label>
+        <label data-i18n="modelPickLabel">模型预设（或在下方手动填 Base URL / Model ID）</label>
         <div class="mode-cards" id="modelCards"></div>
       </div>
       <div class="form-group" id="fgParallel" style="display:none">
-        <label>并行会话数</label>
+        <label data-i18n="parallelLabel">并行会话数</label>
         <div class="chip-row" id="parallelCards">
           <div class="mode-card" data-parallel="5"><div class="mode-name">&lt;5</div></div>
           <div class="mode-card" data-parallel="10"><div class="mode-name">&lt;10</div></div>
           <div class="mode-card" data-parallel="50"><div class="mode-name">&lt;50</div></div>
           <div class="mode-card" data-parallel="100"><div class="mode-name">&lt;100</div></div>
         </div>
-        <div class="help">同时进行的总结会话上限。仅 External / DeepSeek 生效。</div>
+        <div class="help" data-i18n="parallelHelp">同时进行的总结会话上限。仅 External 后端生效。</div>
       </div>
       <div class="form-group" id="fgBaseUrl" style="display:none">
         <label for="inputBaseUrl">Base URL</label>
         <input type="text" id="inputBaseUrl" placeholder="https://api.deepseek.com" />
-        <div class="help">OpenAI 兼容地址。本地服务（如 http://localhost:1234/v1）不需要 API key。</div>
+        <div class="help" data-i18n="baseUrlHelp">OpenAI 兼容地址。本地服务（如 http://localhost:1234/v1）不需要 API key。</div>
       </div>
       <div class="form-group">
-        <label for="inputZoteroExport">Zotero 导出文件（可选）</label>
+        <label for="inputZoteroExport" data-i18n="zoteroExportLabel">Zotero 导出文件（可选）</label>
         <input type="text" id="inputZoteroExport" placeholder="…\zotero-export.json" />
-        <div class="help">Zotero → 导出文献库 → JSON/CSL JSON。填入后元数据（作者/年份/DOI/期刊）直接来自 Zotero，不再依赖 LLM。</div>
+        <div class="help" data-i18n="zoteroExportHelp">Zotero → 导出文献库 → JSON/CSL JSON。填入后元数据（作者/年份/DOI/期刊）直接来自 Zotero，不再依赖 LLM。</div>
       </div>
       <input type="hidden" id="inputModelId" />
       <div class="modal-actions">
-        <button type="button" class="ghost" id="settingsCancel">取消</button>
-        <button type="button" class="primary" id="settingsSave">保存</button>
+        <button type="button" class="ghost" id="settingsCancel" data-i18n="cancel">取消</button>
+        <button type="button" class="primary" id="settingsSave" data-i18n="save">保存</button>
       </div>
     </div>
   </div>
@@ -1049,7 +1111,168 @@
       overviewGroup: "",
       overviewSort: "title",
       activeTab: "extract",
+      groups: [],
+      schemaName: "",
+      schemaNameShort: "",
+      lang: localStorage.getItem("rarf.lang") || ((navigator.language || "zh").toLowerCase().startsWith("zh") ? "zh" : "en"),
     };
+
+    /* ── i18n ── */
+    const I18N = {
+      zh: {
+        statusChecking: "检查中…", zoteroLibrary: "Zotero 库", quit: "退出", settings: "设置",
+        tabSummarize: "Summarize", tabSummary: "Summary",
+        libraryTitle: "文献柜", pickFiles: "用文件管理器选 PDF…",
+        pickFilesHint: "弹出系统选择窗口，可跨文件夹多选批量加入",
+        browseHint: "点文件夹进入；勾选 PDF，或把整个文件夹加入清单。Excel 会列出库中全部已抽取论文，不只是这次勾选的。",
+        selectedLabel: "已选", dimsTitle: "维度与提问词",
+        presetAll: "全选", presetNone: "全不选", savePrompts: "保存提问词",
+        forceRerun: "强制重跑", previewBtn: "清点 PDF", extractBtn: "只抽取文本",
+        runBtn: "抽取并总结", exportBtn: "导出 Excel", openBtn: "打开结果",
+        logIdle: "待命。选择文件夹或 PDF，勾选维度，需要时改提问词。",
+        refreshGrid: "刷新格子",
+        summaryHint: "点击格子聚焦查看；再点「编辑 / 重跑」改稿。Excel 会列出库中全部已抽取论文。",
+        searchPh: "搜索标题 / 作者…", allYears: "全部年份", allPubs: "全部期刊",
+        allStatuses: "全部状态", allFolders: "全部文件夹",
+        sortTitle: "按标题", sortYear: "按年份", sortExtracted: "按抽取时间", sortStatus: "按状态",
+        noResults: "尚无抽取结果。", noMatch: "没有匹配的论文。", loadFailed: "加载失败：",
+        pagerPrev: "‹ 上一页", pagerNext: "下一页 ›", paperCol: "文献",
+        cancel: "取消", save: "保存", close: "关闭", import: "导入",
+        editRerun: "编辑 / 重跑",
+        drawerCurrent: "当前文本", drawerPrompt: "提问词", drawerExtra: "补充说明",
+        drawerExtraPh: "可选：这次重跑要特别注意什么",
+        drawerSave: "保存人工稿", drawerRerun: "按此提问词重跑并替换",
+        settingsTitle: "模型设置", settingsSub: "选择后端并填入 API key。保存在本地 .env，不会上传。",
+        modeLocalDesc: "使用本机 Cursor SDK（默认）", modeExternalDesc: "任意 OpenAI 兼容 API（GLM / DeepSeek…）",
+        cursorKeyHelp: "Local 模式需要。已保存时留空即可。", extKeyLabel: "API Key（本地服务可留空）",
+        extKeySavedAs: (p) => `保存后写入 ${p}_API_KEY / ${p}_BASE_URL（各厂商分开保存）。本地服务可留空；已保存时留空即可。`,
+        modelPickLabel: "模型预设（或在下方手动填 Base URL / Model ID）",
+        parallelLabel: "并行会话数", parallelHelp: "同时进行的总结会话上限。仅 External 后端生效。",
+        baseUrlHelp: "OpenAI 兼容地址。本地服务（如 http://localhost:1234/v1）不需要 API key。",
+        zoteroExportLabel: "Zotero 导出文件（可选）",
+        zoteroExportHelp: "Zotero → 导出文献库 → JSON/CSL JSON。填入后元数据（作者/年份/DOI/期刊）直接来自 Zotero，不再依赖 LLM。",
+        zoteroSub: "导入 Zotero 导出的 JSON / CSL JSON。只写入元数据（标题、作者、年份、期刊、DOI），不抽取 PDF、不调用模型。导入后可在 Summary 页看到全部文献，并逐格总结。",
+        zoteroPathLabel: "导出文件路径", zoteroFileLabel: "或选择文件",
+        promptBtn: "提问词", resetDefault: "恢复默认", emptyCell: "空", noText: "（空）",
+        folder: "文件夹", pdfKind: "PDF", drives: "磁盘", upLevel: "上级",
+        useThisFolder: "选用此文件夹", selectAllPdfs: "全选当前 PDF",
+        default_folder: "默认文献夹", project_root: "项目目录",
+        emptyDir: "此目录没有子文件夹或 PDF。",
+        emptyListingTitle: "选择文献来源", emptyListingSub: "从上方快捷入口进入，或用文件管理器直接挑选 PDF。",
+        emptyOverviewTitle: "还没有总结结果", emptyOverviewSub: "回到 Summarize 页，选择文件夹并点击「抽取并总结」。",
+        deskTitleSuffix: "Desk",
+        confirmQuit: (name) => `确定退出 ${name}？后台服务会停止。`,
+        exitedHtml: (name) => `<div style='padding:60px;font-family:sans-serif'>${name} 已退出，可以关闭此页面。</div>`,
+        settingsSaved: "设置已保存。", saveFailed: "保存失败：",
+        pickOpened: "文件管理器已打开（窗口可能在浏览器后面）…",
+        pickedAdded: (n) => `已通过文件管理器加入 ${n} 个 PDF。`, pickedNone: "未选择新文件。",
+        pickFailed: "文件管理器选择失败：",
+        zoteroPickFirst: "请选择 Zotero 导出文件或填写路径。",
+        zoteroDone: (i, m, t) => `Zotero 导入完成：新增 ${i} 条，合并 ${m} 条，共 ${t} 条。`,
+        zoteroFailed: "导入失败：",
+        selectFirst: "请先选择文件夹或 PDF。", selectDim: "请至少勾选一个维度。",
+        jobStarted: "任务已开始…", errorPrefix: "错误：",
+        replacedCells: (n) => `\n已替换 ${n} 格。`, donePapers: (n) => `\n完成 ${n} 篇。`,
+        exportedTo: "已导出：\n", promptsSaved: "已保存维度选择与提问词。",
+        humanSaved: "已保存人工稿。", cellRerunStarted: "格子重跑已开始…",
+        previewLog: (n, root, files) => `将处理 ${n} 个 PDF。\n根目录：${root}\n${files}`,
+        forceConfirm: "已勾选「强制重跑」：所有选中论文将忽略缓存重新调用模型，可能耗时较长且消耗 API 额度。继续？",
+        pagerText: (p, tp, n) => `第 ${p} / ${tp} 页 · 共 ${n} 篇`,
+        noPdfNote: "该文献没有本地 PDF，无法总结", noPdf: "无 PDF",
+        hasKeyLoaded: "CURSOR_API_KEY 已加载", noApiKey: "未找到 API key",
+        extMissingKey: "缺 External API key",
+        extStatus: (model, cap) => `${model} · 并行<${cap}`,
+        externalModelFallback: "外部模型",
+        presetOnlySession: (label) => `只要${label}`,
+      },
+      en: {
+        statusChecking: "Checking…", zoteroLibrary: "Zotero library", quit: "Quit", settings: "Settings",
+        tabSummarize: "Summarize", tabSummary: "Summary",
+        libraryTitle: "Library", pickFiles: "Pick PDFs in file manager…",
+        pickFilesHint: "Opens the system picker; select PDFs across folders in one go",
+        browseHint: "Enter folders, check PDFs, or add whole folders. The workbook lists every extracted paper, not just this selection.",
+        selectedLabel: "Selected", dimsTitle: "Dimensions & prompts",
+        presetAll: "All", presetNone: "None", savePrompts: "Save prompts",
+        forceRerun: "Force re-run", previewBtn: "Count PDFs", extractBtn: "Extract only",
+        runBtn: "Extract & summarize", exportBtn: "Export Excel", openBtn: "Open results",
+        logIdle: "Idle. Pick a folder or PDFs, toggle dimensions, edit prompts if needed.",
+        refreshGrid: "Refresh",
+        summaryHint: "Click a cell to focus; then “Edit / re-run” to revise. The workbook lists every extracted paper.",
+        searchPh: "Search title / author…", allYears: "All years", allPubs: "All journals",
+        allStatuses: "All statuses", allFolders: "All folders",
+        sortTitle: "By title", sortYear: "By year", sortExtracted: "By extraction time", sortStatus: "By status",
+        noResults: "Nothing extracted yet.", noMatch: "No papers match.", loadFailed: "Load failed: ",
+        pagerPrev: "‹ Prev", pagerNext: "Next ›", paperCol: "Paper",
+        cancel: "Cancel", save: "Save", close: "Close", import: "Import",
+        editRerun: "Edit / re-run",
+        drawerCurrent: "Current text", drawerPrompt: "Prompt", drawerExtra: "Extra notes",
+        drawerExtraPh: "Optional: what should this re-run pay attention to?",
+        drawerSave: "Save human draft", drawerRerun: "Re-run with this prompt and replace",
+        settingsTitle: "Model settings", settingsSub: "Choose a backend and enter API keys. Stored in a local .env, never uploaded.",
+        modeLocalDesc: "Use the local Cursor SDK (default)", modeExternalDesc: "Any OpenAI-compatible API (GLM / DeepSeek…)",
+        cursorKeyHelp: "Required for Local mode. Leave empty if already saved.", extKeyLabel: "API Key (optional for local servers)",
+        extKeySavedAs: (p) => `Saved as ${p}_API_KEY / ${p}_BASE_URL (each provider stored separately). Optional for local servers; leave empty if already saved.`,
+        modelPickLabel: "Model presets (or enter Base URL / Model ID below)",
+        parallelLabel: "Parallel sessions", parallelHelp: "Cap on concurrent summarizing sessions. External backend only.",
+        baseUrlHelp: "OpenAI-compatible endpoint. Local servers (e.g. http://localhost:1234/v1) need no API key.",
+        zoteroExportLabel: "Zotero export file (optional)",
+        zoteroExportHelp: "Zotero → Export Library → JSON/CSL JSON. Once set, metadata (authors/year/DOI/journal) comes from Zotero, not the LLM.",
+        zoteroSub: "Import a Zotero JSON / CSL JSON export. Writes metadata only (title, authors, year, journal, DOI) — no PDF extraction, no model calls. Imported items appear on the Summary page.",
+        zoteroPathLabel: "Export file path", zoteroFileLabel: "Or choose a file",
+        promptBtn: "Prompt", resetDefault: "Reset to default", emptyCell: "empty", noText: "(empty)",
+        folder: "Folder", pdfKind: "PDF", drives: "Drives", upLevel: "Up",
+        useThisFolder: "Use this folder", selectAllPdfs: "Select all PDFs here",
+        default_folder: "Default library", project_root: "Project folder",
+        emptyDir: "No subfolders or PDFs in this directory.",
+        emptyListingTitle: "Choose a paper source", emptyListingSub: "Use the shortcuts above, or pick PDFs directly in the file manager.",
+        emptyOverviewTitle: "No summaries yet", emptyOverviewSub: "Go to Summarize, pick a folder, and click “Extract & summarize”.",
+        deskTitleSuffix: "Desk",
+        confirmQuit: (name) => `Quit ${name}? The background server will stop.`,
+        exitedHtml: (name) => `<div style='padding:60px;font-family:sans-serif'>${name} has exited. You can close this page.</div>`,
+        settingsSaved: "Settings saved.", saveFailed: "Save failed: ",
+        pickOpened: "File manager opened (it may be behind the browser)…",
+        pickedAdded: (n) => `Added ${n} PDF(s) via the file manager.`, pickedNone: "No new files selected.",
+        pickFailed: "File manager failed: ",
+        zoteroPickFirst: "Choose a Zotero export file or enter a path first.",
+        zoteroDone: (i, m, t) => `Zotero import done: ${i} added, ${m} merged, ${t} total.`,
+        zoteroFailed: "Import failed: ",
+        selectFirst: "Select a folder or PDF first.", selectDim: "Select at least one dimension.",
+        jobStarted: "Job started…", errorPrefix: "Error: ",
+        replacedCells: (n) => `\nReplaced ${n} cell(s).`, donePapers: (n) => `\nDone with ${n} paper(s).`,
+        exportedTo: "Exported:\n", promptsSaved: "Dimension selection and prompts saved.",
+        humanSaved: "Human draft saved.", cellRerunStarted: "Cell re-run started…",
+        previewLog: (n, root, files) => `Will process ${n} PDF(s).\nRoot: ${root}\n${files}`,
+        forceConfirm: "“Force re-run” is on: every selected paper will ignore the cache and call the model again, which can be slow and spend API quota. Continue?",
+        pagerText: (p, tp, n) => `Page ${p} / ${tp} · ${n} papers`,
+        noPdfNote: "This item has no local PDF and cannot be summarized", noPdf: "no PDF",
+        hasKeyLoaded: "CURSOR_API_KEY loaded", noApiKey: "No API key found",
+        extMissingKey: "Missing External API key",
+        extStatus: (model, cap) => `${model} · parallel<${cap}`,
+        externalModelFallback: "External model",
+        presetOnlySession: (label) => `Only ${label}`,
+      },
+    };
+    function t(key, ...args) {
+      const entry = (I18N[state.lang] && I18N[state.lang][key]) ?? I18N.zh[key] ?? key;
+      return typeof entry === "function" ? entry(...args) : entry;
+    }
+    function applyI18n() {
+      document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+      document.querySelectorAll("[data-i18n-ph]").forEach((el) => { el.placeholder = t(el.dataset.i18nPh); });
+      document.documentElement.lang = state.lang === "zh" ? "zh-Hans" : "en";
+      $("langZh").classList.toggle("active", state.lang === "zh");
+      $("langEn").classList.toggle("active", state.lang === "en");
+    }
+    function setLang(lang) {
+      state.lang = lang;
+      localStorage.setItem("rarf.lang", lang);
+      applyI18n();
+      renderDims();
+      renderSessionPresets();
+      renderStatusText();
+      if (state.activeTab === "summary") loadOverview().catch(() => {});
+    }
+
     const FALLBACK_PRESETS = [
       { id: "glm-5.3-flash", label: "智谱 GLM-5.3 Flash", provider: "zhipu", base_url: "https://open.bigmodel.cn/api/paas/v4" },
       { id: "glm-5.3", label: "智谱 GLM-5.3", provider: "zhipu", base_url: "https://open.bigmodel.cn/api/paas/v4" },
@@ -1089,6 +1312,9 @@
     /* ── Status ── */
     function applyStatus(data) {
       state.canSummarize = !!data.can_summarize;
+      state.backendMessage = data.backend_message || "";
+      state.hasApiKey = !!data.has_api_key;
+      state.hasExternalKey = !!data.has_external_key;
       state.backend = data.backend || "local";
       state.extBaseUrl = data.external_base_url || "";
       state.extModelId = data.external_model_id || "";
@@ -1096,16 +1322,18 @@
       state.extPresets = data.external_presets || [];
       state.parallelSessions = data.parallel_sessions || 5;
       state.zotero = data.zotero || {};
-      const pill = $("statusPill");
-      const ok = state.canSummarize;
-      pill.className = "status-pill" + (ok ? " ok" : "");
-      if (data.backend_message) $("statusText").textContent = data.backend_message;
-      else if (state.backend === "external") {
-        const model = state.extModelLabel || state.extModelId || "外部模型";
-        $("statusText").textContent = data.has_external_key ? `${model} · 并行<${state.parallelSessions}` : "缺 External API key";
-      }
-      else $("statusText").textContent = data.has_api_key ? "CURSOR_API_KEY 已加载" : "未找到 API key";
+      renderStatusText();
       setBusy(state.busy);
+    }
+    function renderStatusText() {
+      const pill = $("statusPill");
+      pill.className = "status-pill" + (state.canSummarize ? " ok" : "");
+      if (state.backendMessage) $("statusText").textContent = state.backendMessage;
+      else if (state.backend === "external") {
+        const model = state.extModelLabel || state.extModelId || t("externalModelFallback");
+        $("statusText").textContent = state.hasExternalKey ? t("extStatus", model, state.parallelSessions) : t("extMissingKey");
+      }
+      else $("statusText").textContent = state.hasApiKey ? t("hasKeyLoaded") : t("noApiKey");
     }
 
     /* ── Settings modal ── */
@@ -1118,7 +1346,7 @@
       $("inputModelId").value = modalModel;
       if (preset && preset.base_url) $("inputBaseUrl").value = preset.base_url;
       const prefix = ((preset && preset.provider) || "EXTERNAL").toUpperCase();
-      $("extKeyHelp").textContent = `保存后写入 ${prefix}_API_KEY / ${prefix}_BASE_URL（各厂商分开保存）。本地服务可留空；已保存时留空即可。`;
+      $("extKeyHelp").textContent = t("extKeySavedAs", prefix);
       document.querySelectorAll("#modelCards .mode-card").forEach((el) => {
         el.classList.toggle("selected", el.dataset.model === modalModel);
       });
@@ -1199,8 +1427,8 @@
         const res = await postJSON("/api/settings", body);
         applyStatus(res.state);
         closeSettings();
-        log("设置已保存。");
-      } catch (err) { log("保存失败：" + String(err.message || err)); }
+        log(t("settingsSaved"));
+      } catch (err) { log(t("saveFailed") + String(err.message || err)); }
     };
 
     /* ── Zotero import ── */
@@ -1211,9 +1439,10 @@
     function closeZotero() { $("zoteroOverlay").classList.remove("open"); }
     $("zoteroBtn").onclick = openZotero;
     $("quitBtn").onclick = async () => {
-      if (!confirm("确定退出 RARF Desk？后台服务会停止。")) return;
+      const name = deskName();
+      if (!confirm(t("confirmQuit", name))) return;
       try { await postJSON("/api/shutdown", {}); } catch (err) {}
-      document.body.innerHTML = "<div style='padding:60px;font-family:sans-serif'>RARF Desk 已退出，可以关闭此页面。</div>";
+      document.body.innerHTML = t("exitedHtml", name);
     };
     $("zoteroCancel").onclick = closeZotero;
     $("zoteroOverlay").onclick = (e) => { if (e.target === $("zoteroOverlay")) closeZotero(); };
@@ -1227,25 +1456,25 @@
       } else if (path) {
         body = { path };
       } else {
-        log("请选择 Zotero 导出文件或填写路径。");
+        log(t("zoteroPickFirst"));
         return;
       }
       try {
         const res = await postJSON("/api/zotero/import", body);
-        log(`Zotero 导入完成：新增 ${res.imported} 条，合并 ${res.merged} 条，共 ${res.total} 条。`);
+        log(t("zoteroDone", res.imported, res.merged, res.total));
         closeZotero();
         if (state.activeTab === "summary") loadOverview().catch(() => {});
-      } catch (err) { log("导入失败：" + String(err.message || err)); }
+      } catch (err) { log(t("zoteroFailed") + String(err.message || err)); }
     };
 
     /* ── File browser ── */
     function renderSelected() {
-      $("selectedCount").textContent = `${state.selected.size} 项`;
+      $("selectedCount").textContent = `${state.selected.size}`;
       $("selectedList").innerHTML = "";
       for (const [path, item] of state.selected) {
         const pill = document.createElement("span");
         pill.className = "pill";
-        pill.innerHTML = `<span>${item.kind === "folder" ? "夹" : "PDF"} ${item.name}</span>`;
+        pill.innerHTML = `<span>${item.kind === "folder" ? t("folder") : "PDF"} ${item.name}</span>`;
         const x = document.createElement("button");
         x.type = "button"; x.textContent = "×";
         x.onclick = () => { state.selected.delete(path); renderSelected(); };
@@ -1256,7 +1485,7 @@
     function addSelected(path, name, kind) { state.selected.set(path, { path, name, kind }); renderSelected(); }
 
     $("pickFilesBtn").onclick = async () => {
-      log("文件管理器已打开（窗口可能在浏览器后面）…");
+      log(t("pickOpened"));
       try {
         const data = await getJSON("/api/pick-files");
         let added = 0;
@@ -1265,28 +1494,28 @@
           addSelected(p, p.split(/[\\/]/).pop(), "file");
           added++;
         }
-        log(added ? `已通过文件管理器加入 ${added} 个 PDF。` : "未选择新文件。");
-      } catch (err) { log("文件管理器选择失败：" + String(err.message || err)); }
+        log(added ? t("pickedAdded", added) : t("pickedNone"));
+      } catch (err) { log(t("pickFailed") + String(err.message || err)); }
     };
 
     function renderListing() {
       const listing = state.listing;
       const crumbs = $("crumbs");
       crumbs.innerHTML = "";
-      if (!listing.path) { crumbs.textContent = "磁盘"; }
+      if (!listing.path) { crumbs.textContent = t("drives"); }
       else {
         const up = document.createElement("button");
-        up.type = "button"; up.textContent = "上级";
+        up.type = "button"; up.textContent = t("upLevel");
         up.onclick = () => browse(listing.parent || "drives");
         crumbs.appendChild(up);
         crumbs.append(`  ${listing.path}`);
         const use = document.createElement("button");
-        use.type = "button"; use.textContent = "选用此文件夹";
+        use.type = "button"; use.textContent = t("useThisFolder");
         use.onclick = () => addSelected(listing.path, listing.path.split(/[\\/]/).pop(), "folder");
         crumbs.appendChild(use);
         if ((listing.files || []).length) {
           const all = document.createElement("button");
-          all.type = "button"; all.textContent = "全选当前 PDF";
+          all.type = "button"; all.textContent = t("selectAllPdfs");
           all.onclick = () => { for (const file of listing.files) addSelected(file.path, file.name, "file"); };
           crumbs.appendChild(all);
         }
@@ -1296,7 +1525,7 @@
       for (const dir of listing.dirs || []) {
         const row = document.createElement("div");
         row.className = "file-row";
-        row.innerHTML = `<span></span><span class="fname">${dir.name}</span><span class="fkind">文件夹${dir.pdf_here ? " · " + dir.pdf_here + " PDF" : ""}</span>`;
+        row.innerHTML = `<span></span><span class="fname">${dir.name}</span><span class="fkind">${t("folder")}${dir.pdf_here ? " · " + dir.pdf_here + " PDF" : ""}</span>`;
         row.onclick = () => browse(dir.path);
         box.appendChild(row);
       }
@@ -1310,7 +1539,7 @@
         row.onclick = (e) => { if (e.target.tagName === "INPUT") return; cb.checked = !cb.checked; cb.onchange(); };
         box.appendChild(row);
       }
-      if (!(listing.dirs || []).length && !(listing.files || []).length) box.innerHTML = `<div class="hint" style="padding:18px">此目录没有子文件夹或 PDF。</div>`;
+      if (!(listing.dirs || []).length && !(listing.files || []).length) box.innerHTML = `<div class="hint" style="padding:18px">${t("emptyDir")}</div>`;
     }
 
     async function browse(path) {
@@ -1320,7 +1549,8 @@
       $("shortcuts").innerHTML = "";
       for (const item of data.shortcuts || []) {
         const btn = document.createElement("button");
-        btn.type = "button"; btn.textContent = item.name;
+        btn.type = "button";
+        btn.textContent = item.key ? t(item.key) : item.name;
         btn.onclick = () => browse(item.path);
         $("shortcuts").appendChild(btn);
       }
@@ -1328,6 +1558,33 @@
     }
 
     /* ── Dimensions ── */
+    function groupColor(groupId, kind) {
+      const g = (state.groups || []).find((item) => item.id === groupId);
+      return (g && (kind === "soft" ? g.soft : g.color)) || "";
+    }
+    function sessionLabel(session) {
+      return session;
+    }
+    function renderSessionPresets() {
+      const host = $("dimPresets");
+      host.querySelectorAll("[data-session-preset]").forEach((el) => el.remove());
+      const sessions = [...new Set(state.fields.map((f) => f.session))];
+      const anchor = $("saveProfile");
+      for (const session of sessions) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "sm";
+        btn.dataset.sessionPreset = session;
+        btn.textContent = t("presetOnlySession", sessionLabel(session));
+        btn.onclick = () => {
+          document.querySelectorAll(".dim-on").forEach((box) => {
+            const field = state.fields.find((f) => f.id === box.value);
+            box.checked = field && field.session === session;
+          });
+        };
+        host.insertBefore(btn, anchor);
+      }
+    }
     function renderDims() {
       const host = $("dims");
       host.innerHTML = "";
@@ -1342,11 +1599,11 @@
             <input class="dim-on" type="checkbox" value="${field.id}" ${enabled.has(field.id) ? "checked" : ""} />
             <label>${field.label}</label>
             <span class="badge ${field.session}">${field.session}</span>
-            <button type="button" class="sm ghost edit">提问词</button>
+            <button type="button" class="sm ghost edit">${t("promptBtn")}</button>
           </div>
           <div class="dim-prompt">
             <textarea data-id="${field.id}">${instructions[field.id] || field.instruction}</textarea>
-            <button type="button" class="sm ghost reset">恢复默认</button>
+            <button type="button" class="sm ghost reset">${t("resetDefault")}</button>
           </div>`;
         wrap.querySelector(".edit").onclick = () => wrap.classList.toggle("open");
         wrap.querySelector(".reset").onclick = () => { wrap.querySelector("textarea").value = field.instruction; };
@@ -1355,7 +1612,11 @@
     }
 
     /* ── Log ── */
-    function log(text) { $("log").textContent = text; $("log").scrollTop = $("log").scrollHeight; }
+    function log(text, { replace = false } = {}) {
+      const box = $("log");
+      box.textContent = replace ? text : (box.textContent ? box.textContent + "\n" + text : text);
+      box.scrollTop = box.scrollHeight;
+    }
 
     /* ── Tabs ── */
     function switchTab(name) {
@@ -1413,29 +1674,36 @@
       if ($("filterStatus")) $("filterStatus").value = state.overviewStatus;
       if ($("filterGroup")) $("filterGroup").value = state.overviewGroup;
 
+      if (data.groups) state.groups = data.groups;
+      if (data.schema_name) state.schemaName = data.schema_name;
       const host = $("overview");
       if (!host) { console.error("overview element missing"); return; }
       host.innerHTML = "";
       const rows = _overviewFiltered(data.rows || []);
-      if (!rows.length) { host.innerHTML = `<div class="hint" style="padding:18px">没有匹配的论文。</div>`; if ($("pagerInfo")) $("pagerInfo").textContent = ""; return; }
+      if (!rows.length) {
+        host.innerHTML = (data.rows || []).length
+          ? `<div class="hint" style="padding:18px">${t("noMatch")}</div>`
+          : `<div class="empty-state"><svg class="empty-icon" viewBox="0 0 32 32"><rect x="4" y="3" width="24" height="26" rx="4" fill="none" stroke="#8a8780" stroke-width="1.6"/><rect x="9" y="9" width="14" height="2.4" rx="1.2" fill="#8a8780"/><rect x="9" y="14.5" width="14" height="2.4" rx="1.2" fill="#8a8780" opacity=".7"/><rect x="9" y="20" width="9" height="2.4" rx="1.2" fill="#8a8780" opacity=".45"/></svg><div class="empty-title">${t("emptyOverviewTitle")}</div><div class="empty-sub">${t("emptyOverviewSub")}</div></div>`;
+        if ($("pagerInfo")) $("pagerInfo").textContent = "";
+        return;
+      }
       const totalPages = Math.max(1, Math.ceil(rows.length / state.overviewPerPage));
       if (state.overviewPage > totalPages) state.overviewPage = totalPages;
       const start = (state.overviewPage - 1) * state.overviewPerPage;
       const pageRows = rows.slice(start, start + state.overviewPerPage);
-      if ($("pagerInfo")) $("pagerInfo").textContent = `第 ${state.overviewPage} / ${totalPages} 页 · 共 ${rows.length} 篇`;
+      if ($("pagerInfo")) $("pagerInfo").textContent = t("pagerText", state.overviewPage, totalPages, rows.length);
       if ($("pagerPrev")) $("pagerPrev").disabled = state.overviewPage <= 1;
       if ($("pagerNext")) $("pagerNext").disabled = state.overviewPage >= totalPages;
 
       const table = document.createElement("table");
       table.className = "overview";
       const head = document.createElement("tr");
-      const th0 = document.createElement("th"); th0.textContent = "文献"; head.appendChild(th0);
-      const groupColor = { identity: "#D6EAF8", theory: "#D5F5E3", constructs: "#E8DAEF", method: "#FCF3CF", implications: "#FADBD8" };
+      const th0 = document.createElement("th"); th0.textContent = t("paperCol"); head.appendChild(th0);
       for (const f of data.fields || []) {
         const th = document.createElement("th");
         th.textContent = f.label;
         th.title = `${f.id} · ${f.group}`;
-        th.style.background = groupColor[f.group] || "";
+        th.style.background = groupColor(f.group, "soft");
         head.appendChild(th);
       }
       table.appendChild(head);
@@ -1449,7 +1717,7 @@
           const td = document.createElement("td");
           const cell = (row.cells || {})[f.id] || {};
           td.className = "cell" + (cell.text ? "" : " empty");
-          td.textContent = cell.text ? clip(cell.text, 140) : "空";
+          td.textContent = cell.text ? clip(cell.text, 140) : t("emptyCell");
           td.title = cell.text || "";
           td.onclick = () => {
             document.querySelectorAll("table.overview td.cell.selected").forEach(el => el.classList.remove("selected"));
@@ -1464,12 +1732,20 @@
       } catch (err) {
         console.error("loadOverview failed", err);
         const host = $("overview");
-        if (host) host.innerHTML = `<div class="hint" style="padding:18px;color:var(--danger)">加载失败：${String(err.message || err)}</div>`;
+        if (host) host.innerHTML = `<div class="hint" style="padding:18px;color:var(--danger)">${t("loadFailed")}${String(err.message || err)}</div>`;
       }
     }
     $("pagerPrev").onclick = () => { if (state.overviewPage > 1) { state.overviewPage--; loadOverview(); } };
     $("pagerNext").onclick = () => { state.overviewPage++; loadOverview(); };
-    $("overviewSearch").oninput = () => { state.overviewSearch = $("overviewSearch").value; state.overviewPage = 1; loadOverview(); };
+    let _searchTimer = null;
+    $("overviewSearch").oninput = () => {
+      clearTimeout(_searchTimer);
+      _searchTimer = setTimeout(() => {
+        state.overviewSearch = $("overviewSearch").value;
+        state.overviewPage = 1;
+        loadOverview();
+      }, 200);
+    };
     $("filterYear").onchange = () => { state.overviewYear = $("filterYear").value; state.overviewPage = 1; loadOverview(); };
     $("filterPub").onchange = () => { state.overviewPub = $("filterPub").value; state.overviewPage = 1; loadOverview(); };
     $("filterStatus").onchange = () => { state.overviewStatus = $("filterStatus").value; state.overviewPage = 1; loadOverview(); };
@@ -1510,7 +1786,7 @@
     function openFocus(row, field, cell) {
       state.focus = { paper_id: row.paper_id, field, cell, title: row.title, has_pdf: row.has_pdf !== false };
       $("focusTitle").textContent = field.label;
-      $("focusMeta").textContent = `${row.title} · ${field.id} · ${cell.source || "none"}${row.has_pdf === false ? " · 无 PDF" : ""}`;
+      $("focusMeta").textContent = `${row.title} · ${field.id} · ${cell.source || "none"}${row.has_pdf === false ? " · " + t("noPdf") : ""}`;
       const content = $("focusContent");
       content.innerHTML = "";
       const text = cell.text || "";
@@ -1520,7 +1796,7 @@
       } else {
         const div = document.createElement("div");
         div.className = "field-text" + (text ? "" : " empty");
-        div.textContent = text || "（空）";
+        div.textContent = text || t("noText");
         content.appendChild(div);
       }
       // nav: other fields for this paper
@@ -1532,7 +1808,8 @@
         if (!groups[g]) groups[g] = [];
         groups[g].push(f);
       }
-      const groupOrder = ["identity", "theory", "constructs", "method", "implications", "other"];
+      const groupOrder = (state.groups || []).map((g) => g.id);
+      const groupLabel = (gid) => { const g = (state.groups || []).find((x) => x.id === gid); return (g && g.label) || gid; };
       const sortedGroups = Object.entries(groups).sort((a, b) => {
         const ia = groupOrder.indexOf(a[0]);
         const ib = groupOrder.indexOf(b[0]);
@@ -1542,7 +1819,9 @@
         const label = document.createElement("div");
         label.className = "nav-group";
         label.dataset.group = group;
-        label.textContent = group;
+        const gcolor = groupColor(group);
+        if (gcolor) label.style.setProperty("--group-color", gcolor);
+        label.textContent = groupLabel(group);
         nav.appendChild(label);
         for (const f of fields) {
           const btn = document.createElement("button");
@@ -1570,7 +1849,7 @@
       $("drawerInstruction").value = (box && box.value) || field.instruction || "";
       $("drawerExtra").value = "";
       $("drawerRerun").disabled = state.drawer.has_pdf ? (!state.canSummarize) : true;
-      $("drawerRerun").title = state.drawer.has_pdf ? "" : "该文献没有本地 PDF，无法总结";
+      $("drawerRerun").title = state.drawer.has_pdf ? "" : t("noPdfNote");
       $("drawer").classList.add("open");
       $("drawerOverlay").classList.add("open");
       setBusy(state.busy);
@@ -1580,13 +1859,13 @@
     /* ── Job polling ── */
     async function pollJob() {
       const data = await getJSON("/api/job");
-      if (data.logs && data.logs.length) log(data.logs.join("\n"));
+      if (data.logs && data.logs.length) log(data.logs.join("\n"), { replace: true });
       if (data.status === "running") { setTimeout(pollJob, 1200); return; }
       setBusy(false);
-      if (data.error) log((data.logs || []).join("\n") + "\n错误：" + data.error);
+      if (data.error) log((data.logs || []).join("\n") + "\n" + t("errorPrefix") + data.error, { replace: true });
       else if (data.result) {
-        const extra = data.result.field_ids ? `\n已替换 ${(data.result.field_ids || []).length} 格。` : `\n完成 ${data.result.count || 0} 篇。`;
-        log((data.logs || []).join("\n") + extra);
+        const extra = data.result.field_ids ? t("replacedCells", (data.result.field_ids || []).length) : t("donePapers", data.result.count || 0);
+        log((data.logs || []).join("\n") + extra, { replace: true });
         if (state.activeTab === "summary") loadOverview().catch(() => {});
       }
     }
@@ -1594,41 +1873,46 @@
     function setBusy(on) {
       state.busy = !!on;
       ["extractBtn", "exportBtn", "previewBtn", "drawerSave"].forEach(id => { if ($(id)) $(id).disabled = !!on; });
-      if ($("runBtn")) $("runBtn").disabled = !!on || !state.canSummarize;
+      if ($("runBtn")) {
+        $("runBtn").disabled = !!on || !state.canSummarize;
+        const label = t("runBtn");
+        $("runBtn").innerHTML = on ? `<span class="spinner"></span>${label}` : label;
+      }
       if ($("drawerRerun")) $("drawerRerun").disabled = !!on || !state.canSummarize;
     }
 
     /* ── Actions ── */
     async function run(action) {
       const paths = selectedPaths();
-      if (!paths.length) return log("请先选择文件夹或 PDF。");
-      if (action !== "extract" && !enabledIds().length) return log("请至少勾选一个维度。");
+      if (!paths.length) return log(t("selectFirst"));
+      if (action !== "extract" && !enabledIds().length) return log(t("selectDim"));
       if (action !== "extract" && !state.canSummarize) return log($("statusText").textContent);
+      if (action === "run" && $("force").checked && !confirm(t("forceConfirm"))) return;
       setBusy(true);
       try {
         await postJSON("/api/run", { action, paths, enabled: enabledIds(), instructions: instructionMap(), backend: state.backend, force: $("force").checked, export: action === "run" });
-        log("任务已开始…");
+        log(t("jobStarted"));
         pollJob();
       } catch (err) { setBusy(false); log(String(err.message || err)); }
     }
 
     $("previewBtn").onclick = async () => {
       const paths = selectedPaths();
-      if (!paths.length) return log("请先选择文件夹或 PDF。");
+      if (!paths.length) return log(t("selectFirst"));
       const data = await postJSON("/api/preview", { paths });
-      log(`将处理 ${data.count} 个 PDF。\n根目录：${data.root}\n` + data.files.join("\n"));
+      log(t("previewLog", data.count, data.root, data.files.join("\n")));
     };
     $("extractBtn").onclick = () => run("extract");
     $("runBtn").onclick = () => run("run");
     $("exportBtn").onclick = async () => {
       await postJSON("/api/profile", { enabled: enabledIds(), instructions: instructionMap(), backend: state.backend });
       const data = await postJSON("/api/export", {});
-      log("已导出：\n" + data.path);
+      log(t("exportedTo") + data.path);
     };
     $("openBtn").onclick = () => postJSON("/api/open", {});
     $("saveProfile").onclick = async () => {
       await postJSON("/api/profile", { enabled: enabledIds(), instructions: instructionMap(), backend: state.backend });
-      log("已保存维度选择与提问词。");
+      log(t("promptsSaved"));
     };
     $("refreshOverview").onclick = () => loadOverview().catch(err => log(String(err.message || err)));
     $("focusClose").onclick = closeFocus;
@@ -1646,7 +1930,7 @@
     $("drawerSave").onclick = async () => {
       if (!state.drawer) return;
       await postJSON("/api/cell", { paper_id: state.drawer.paper_id, field_id: state.drawer.field.id, text: $("drawerText").value });
-      log("已保存人工稿。");
+      log(t("humanSaved"));
       if (state.activeTab === "summary") await loadOverview();
     };
     $("drawerRerun").onclick = async () => {
@@ -1660,7 +1944,7 @@
       setBusy(true);
       try {
         await postJSON("/api/resummarize", { paper_id: state.drawer.paper_id, field_ids: [fieldId], extra_instruction: $("drawerExtra").value, instruction_override: instruction, backend: state.backend });
-        log("格子重跑已开始…");
+        log(t("cellRerunStarted"));
         pollJob();
       } catch (err) { setBusy(false); log(String(err.message || err)); }
     };
@@ -1668,27 +1952,56 @@
       btn.onclick = () => {
         const preset = btn.dataset.preset;
         document.querySelectorAll(".dim-on").forEach(box => {
-          const field = state.fields.find(f => f.id === box.value);
           if (preset === "all") box.checked = true;
           else if (preset === "none") box.checked = false;
-          else box.checked = field && field.session === preset;
         });
       };
     });
 
+    /* ── Esc closes any overlay ── */
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if ($("focusOverlay").classList.contains("open")) closeFocus();
+      else if ($("drawer").classList.contains("open")) closeDrawer();
+      else if ($("settingsOverlay").classList.contains("open")) closeSettings();
+      else if ($("zoteroOverlay").classList.contains("open")) closeZotero();
+    });
+
+    /* ── Language toggle ── */
+    $("langZh").onclick = () => setLang("zh");
+    $("langEn").onclick = () => setLang("en");
+
+    function deskName() {
+      const short = state.schemaNameShort || state.schemaName || "RARF";
+      return `${short} ${t("deskTitleSuffix")}`;
+    }
+
     /* ── Init ── */
     (async function init() {
+      applyI18n();
       const data = await getJSON("/api/state");
       state.fields = data.fields;
+      state.groups = data.groups || [];
+      state.schemaName = data.schema_name || "";
+      state.schemaNameShort = data.schema_name_short || "";
+      if (state.schemaNameShort || state.schemaName) {
+        const name = deskName();
+        $("brandName").textContent = name;
+        document.title = name;
+        $("brandSub").textContent = state.schemaName;
+      }
       state.profile = data.profile || { enabled: data.fields.map(f => f.id), instructions: {} };
       if (!state.profile.enabled) state.profile.enabled = data.fields.map(f => f.id);
       applyStatus(data);
       renderDims();
+      renderSessionPresets();
       await browse(data.default_folder);
       const job = await getJSON("/api/job");
       if (job.status === "running") { setBusy(true); pollJob(); }
-      // Auto-open settings if no key configured
-      if (!data.can_summarize && !data.has_api_key && !data.has_external_key) openSettings();
+      // Auto-open settings only on first run without any key
+      const seen = localStorage.getItem("rarf.seen");
+      if (!seen && !data.can_summarize && !data.has_api_key && !data.has_external_key) openSettings();
+      localStorage.setItem("rarf.seen", "1");
     })().catch(err => log(String(err)));
   </script>
 </body>

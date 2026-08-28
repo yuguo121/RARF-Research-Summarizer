@@ -1,5 +1,31 @@
 schema_version: "1.0.0"
 prompt_version: "1.1.0"
+name: "Research Article Review Form"
+name_short: "RARF"
+
+# Group order and styling for the desk UI and the Excel export.
+# color = header/strong, soft = light tint for column backgrounds.
+groups:
+  - id: identity
+    label: Identity
+    color: "#1F4E79"
+    soft: "#D6EAF8"
+  - id: theory
+    label: Theory
+    color: "#196F3D"
+    soft: "#D5F5E3"
+  - id: constructs
+    label: Constructs
+    color: "#7D3C98"
+    soft: "#E8DAEF"
+  - id: method
+    label: Method
+    color: "#B7950B"
+    soft: "#FCF3CF"
+  - id: implications
+    label: Implications
+    color: "#922B21"
+    soft: "#FADBD8"
 
 status_values:
   - present
@@ -41,11 +67,13 @@ sessions:
       - theory
       - discussion
       - conclusion
+      - front_matter
   method:
     description: Methods, data, measures, analyses, results, robustness/endogeneity, and relevant appendices.
     section_keys:
       - methods
       - results
+      - tables
       - appendix
   reconcile:
     description: Merge theory and method outputs, verify quotes, and link constructs to measures.

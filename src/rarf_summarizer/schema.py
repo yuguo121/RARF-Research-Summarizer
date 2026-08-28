@@ -21,6 +21,14 @@ class FieldSpec:
 
 
 @dataclass(frozen=True)
+class GroupSpec:
+    id: str
+    label: str
+    color: str = ""
+    soft: str = ""
+
+
+@dataclass(frozen=True)
 class Schema:
     version: str
     prompt_version: str
@@ -31,6 +39,9 @@ class Schema:
     variable_classes: tuple[str, ...]
     measure_types: tuple[str, ...]
     sessions: dict
+    name: str = "Review Form"
+    name_short: str = ""
+    groups: tuple[GroupSpec, ...] = ()
 
     def field(self, field_id: str) -> FieldSpec:
         for spec in self.fields:
@@ -61,6 +72,19 @@ class Schema:
             for spec in self.fields
         ]
 
+    def groups_as_dict(self) -> list[dict]:
+        """Groups in declaration order, extended with any group used by fields but not declared."""
+        declared = list(self.groups)
+        seen = {g.id for g in declared}
+        for spec in self.fields:
+            if spec.group not in seen:
+                seen.add(spec.group)
+                declared.append(GroupSpec(id=spec.group, label=spec.group.replace("_", " ").title()))
+        return [
+            {"id": g.id, "label": g.label, "color": g.color, "soft": g.soft}
+            for g in declared
+        ]
+
 
 def load_schema(path: Path | None = None) -> Schema:
     raw = load_yaml(path or CONFIG_DIR / "rarf_schema.yaml")
@@ -75,6 +99,15 @@ def load_schema(path: Path | None = None) -> Schema:
         )
         for item in raw["fields"]
     )
+    groups = tuple(
+        GroupSpec(
+            id=str(item["id"]),
+            label=str(item.get("label") or str(item["id"]).replace("_", " ").title()),
+            color=str(item.get("color") or ""),
+            soft=str(item.get("soft") or ""),
+        )
+        for item in (raw.get("groups") or [])
+    )
     return Schema(
         version=str(raw.get("schema_version", SCHEMA_VERSION)),
         prompt_version=str(raw.get("prompt_version", PROMPT_VERSION)),
@@ -85,6 +118,9 @@ def load_schema(path: Path | None = None) -> Schema:
         variable_classes=tuple(raw.get("variable_classes", ())),
         measure_types=tuple(raw.get("measure_types", ())),
         sessions=raw.get("sessions") or {},
+        name=str(raw.get("name") or "Review Form"),
+        name_short=str(raw.get("name_short") or ""),
+        groups=groups,
     )
 
 
@@ -117,4 +153,7 @@ def apply_profile(
         variable_classes=schema.variable_classes,
         measure_types=schema.measure_types,
         sessions=schema.sessions,
+        name=schema.name,
+        name_short=schema.name_short,
+        groups=schema.groups,
     )

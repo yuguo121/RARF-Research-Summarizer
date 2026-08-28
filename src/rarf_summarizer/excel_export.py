@@ -14,20 +14,32 @@ from rarf_summarizer.storage import Store
 ARIAL = Font(name="Arial", size=10)
 ARIAL_BOLD = Font(name="Arial", size=10, bold=True, color="FFFFFF")
 HEADER_FILL = PatternFill("solid", fgColor="1F4E79")
-GROUP_FILLS = {
-    "identity": PatternFill("solid", fgColor="1F4E79"),
-    "theory": PatternFill("solid", fgColor="196F3D"),
-    "constructs": PatternFill("solid", fgColor="7D3C98"),
-    "method": PatternFill("solid", fgColor="B7950B"),
-    "implications": PatternFill("solid", fgColor="922B21"),
-}
-COL_FILLS = {
-    "identity": PatternFill("solid", fgColor="D6EAF8"),
-    "theory": PatternFill("solid", fgColor="D5F5E3"),
-    "constructs": PatternFill("solid", fgColor="E8DAEF"),
-    "method": PatternFill("solid", fgColor="FCF3CF"),
-    "implications": PatternFill("solid", fgColor="FADBD8"),
-}
+
+# Fallback palette for groups the schema does not style explicitly.
+_FALLBACK_STRONG = ["1F4E79", "196F3D", "7D3C98", "B7950B", "922B21", "0E6E6E", "A04000", "4A235A"]
+_FALLBACK_SOFT = ["D6EAF8", "D5F5E3", "E8DAEF", "FCF3CF", "FADBD8", "D1F2EB", "FAE5D3", "E8DAEF"]
+
+
+def _hex(value: str, fallback: str) -> str:
+    cleaned = str(value or "").strip().lstrip("#")
+    return cleaned.upper() if len(cleaned) == 6 else fallback
+
+
+def group_fills(schema: Schema) -> tuple[dict[str, PatternFill], dict[str, PatternFill]]:
+    """(header fill, column tint) per group id, driven by schema groups with palette fallback."""
+    strong: dict[str, PatternFill] = {}
+    soft: dict[str, PatternFill] = {}
+    for index, group in enumerate(schema.groups_as_dict()):
+        gid = group["id"]
+        strong[gid] = PatternFill("solid", fgColor=_hex(group["color"], _FALLBACK_STRONG[index % len(_FALLBACK_STRONG)]))
+        soft[gid] = PatternFill("solid", fgColor=_hex(group["soft"], _FALLBACK_SOFT[index % len(_FALLBACK_SOFT)]))
+    return strong, soft
+
+
+def overview_sheet_name(schema: Schema) -> str:
+    """Excel sheet names are capped at 31 chars; prefer the schema's short name."""
+    base = schema.name_short or schema.name
+    return f"{base} Overview"[:31]
 THIN = Border(
     left=Side(style="thin", color="BFBFBF"),
     right=Side(style="thin", color="BFBFBF"),
@@ -52,12 +64,15 @@ IDENTITY_COLUMNS = [
 
 def export_workbook(store: Store, schema: Schema, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
+    strong, soft = group_fills(schema)
     wb = Workbook()
-    _overview(wb, store, schema)
-    _variable_map(wb, store)
-    _evidence(wb, store, schema)
-    _run_log(wb, store)
-    _notes(wb)
+    _overview(wb, store, schema, strong, soft)
+    has_construct_kinds = any(spec.value_kind in {"constructs", "measures"} for spec in schema.fields)
+    if has_construct_kinds:
+        _variable_map(wb, store, soft)
+    _evidence(wb, store, schema, strong, soft)
+    _run_log(wb, store, soft)
+    _notes(wb, schema)
     if "Sheet" in wb.sheetnames:
         del wb["Sheet"]
     wb.save(path)
@@ -79,38 +94,38 @@ def _style_body(cell, fill: PatternFill | None = None) -> None:
         cell.fill = fill
 
 
-def _overview(wb: Workbook, store: Store, schema: Schema) -> None:
+def _overview(wb: Workbook, store: Store, schema: Schema, strong: dict, soft: dict) -> None:
     ws = wb.active
-    ws.title = "RARF Overview"
+    ws.title = overview_sheet_name(schema)
     identity = IDENTITY_COLUMNS
     fields = list(schema.fields)
-    groups: list[tuple[str, int]] = [("Identity", len(identity))]
-    current_group = fields[0].group if fields else "theory"
+    group_labels = {g["id"]: g["label"] for g in schema.groups_as_dict()}
+    groups: list[tuple[str, str, int]] = [("identity", group_labels.get("identity", "Identity"), len(identity))]
+    current_group = fields[0].group if fields else ""
     count = 0
     for spec in fields:
         if spec.group != current_group:
-            groups.append((current_group.title(), count))
+            groups.append((current_group, group_labels.get(current_group, current_group.title()), count))
             current_group = spec.group
             count = 0
         count += 1
     if fields:
-        groups.append((current_group.title(), count))
+        groups.append((current_group, group_labels.get(current_group, current_group.title()), count))
 
     col = 1
-    for label, width in groups:
+    for group_id, label, width in groups:
         start = col
         end = col + width - 1
         ws.merge_cells(start_row=1, start_column=start, end_row=1, end_column=end)
         cell = ws.cell(1, start, label)
-        group_key = label.casefold().split()[0]
-        _style_header(cell, GROUP_FILLS.get(group_key, HEADER_FILL))
+        _style_header(cell, strong.get(group_id, HEADER_FILL))
         col = end + 1
 
     headers = [label for _, label in identity] + [spec.label for spec in fields]
     fills = ["identity"] * len(identity) + [spec.group for spec in fields]
     for index, (header, group) in enumerate(zip(headers, fills), start=1):
         cell = ws.cell(2, index, header)
-        _style_header(cell, GROUP_FILLS.get(group, HEADER_FILL))
+        _style_header(cell, strong.get(group, HEADER_FILL))
 
     papers = store.list_papers()
     for row_index, paper in enumerate(papers, start=3):
@@ -135,15 +150,14 @@ def _overview(wb: Workbook, store: Store, schema: Schema) -> None:
             store.mark_exported(paper["id"], spec.id, text)
         for col_index, (value, group) in enumerate(zip(values, fills), start=1):
             cell = ws.cell(row_index, col_index, value)
-            _style_body(cell, COL_FILLS.get(group))
+            _style_body(cell, soft.get(group))
         ws.row_dimensions[row_index].height = 90
 
     last_col = len(headers)
     last_row = max(2, 2 + len(papers))
-    ws.auto_filter.ref = f"A2:{get_column_letter(last_col)}{last_row}"
-    ws.freeze_panes = "K3"
     ws.auto_filter.ref = f"A2:{get_column_letter(last_col)}{max(last_row, 3)}"
-    widths = [22, 36, 28, 10, 22, 14, 40, 20, 20, 14] + [28] * len(fields)
+    ws.freeze_panes = f"{get_column_letter(len(identity) + 1)}3"
+    widths = [22, 36, 28, 10, 22, 14, 40, 20, 20, 14][: len(identity)] + [28] * len(fields)
     for index, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(index)].width = width
     ws.row_dimensions[1].height = 22
@@ -153,11 +167,11 @@ def _overview(wb: Workbook, store: Store, schema: Schema) -> None:
     ws.page_setup.fitToPage = True
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
-    ws.oddHeader.left.text = "RARF Overview"
+    ws.oddHeader.left.text = overview_sheet_name(schema)
     ws.oddFooter.right.text = "Page &P of &N"
 
 
-def _variable_map(wb: Workbook, store: Store) -> None:
+def _variable_map(wb: Workbook, store: Store, soft: dict) -> None:
     ws = wb.create_sheet("Variable-Measure Map")
     headers = [
         "Paper ID",
@@ -194,7 +208,7 @@ def _variable_map(wb: Workbook, store: Store) -> None:
             measure.get("linked_construct"),
         ]
         for col, value in enumerate(values, start=1):
-            _style_body(ws.cell(row_index, col, value), COL_FILLS["constructs"])
+            _style_body(ws.cell(row_index, col, value), soft.get("constructs"))
         row_index += 1
     for key, construct in constructs.items():
         if key in used:
@@ -212,7 +226,7 @@ def _variable_map(wb: Workbook, store: Store) -> None:
             None,
         ]
         for col, value in enumerate(values, start=1):
-            _style_body(ws.cell(row_index, col, value), COL_FILLS["theory"])
+            _style_body(ws.cell(row_index, col, value), soft.get("theory"))
         row_index += 1
     for index, width in enumerate([22, 18, 12, 24, 40, 22, 40, 14, 14, 22], start=1):
         ws.column_dimensions[get_column_letter(index)].width = width
@@ -220,7 +234,7 @@ def _variable_map(wb: Workbook, store: Store) -> None:
     ws.auto_filter.ref = f"A1:J{max(row_index - 1, 1)}"
 
 
-def _evidence(wb: Workbook, store: Store, schema: Schema) -> None:
+def _evidence(wb: Workbook, store: Store, schema: Schema, strong: dict, soft: dict) -> None:
     ws = wb.create_sheet("Evidence & QA")
     headers = [
         "Paper ID",
@@ -267,7 +281,7 @@ def _evidence(wb: Workbook, store: Store, schema: Schema) -> None:
             extra.get("causal_formulation"),
             "; ".join(warning_map.get((item["paper_id"], item["field_id"]), [])),
         ]
-        fill = COL_FILLS["method"] if item.get("matched") else COL_FILLS["implications"]
+        fill = soft.get("method") if item.get("matched") else soft.get("implications")
         for col, value in enumerate(values, start=1):
             _style_body(ws.cell(row_index, col, value), fill)
         row_index += 1
@@ -292,7 +306,7 @@ def _evidence(wb: Workbook, store: Store, schema: Schema) -> None:
             "; ".join(notes),
         ]
         for col, value in enumerate(values, start=1):
-            _style_body(ws.cell(row_index, col, value), COL_FILLS["implications"])
+            _style_body(ws.cell(row_index, col, value), soft.get("implications"))
         row_index += 1
         _ = papers
     for index, width in enumerate([22, 28, 14, 12, 8, 50, 14, 12, 36, 36, 36, 36], start=1):
@@ -301,7 +315,7 @@ def _evidence(wb: Workbook, store: Store, schema: Schema) -> None:
     ws.auto_filter.ref = f"A1:L{max(row_index - 1, 1)}"
 
 
-def _run_log(wb: Workbook, store: Store) -> None:
+def _run_log(wb: Workbook, store: Store, soft: dict) -> None:
     ws = wb.create_sheet("Run Log")
     headers = [
         "ID",
@@ -337,23 +351,24 @@ def _run_log(wb: Workbook, store: Store) -> None:
             item.get("cache_key"),
         ]
         for col, value in enumerate(values, start=1):
-            _style_body(ws.cell(row_index, col, value), COL_FILLS["identity"])
+            _style_body(ws.cell(row_index, col, value), soft.get("identity"))
     for index, width in enumerate([8, 22, 16, 12, 28, 22, 22, 12, 12, 22, 22, 40, 20], start=1):
         ws.column_dimensions[get_column_letter(index)].width = width
     ws.freeze_panes = "A2"
 
 
-def _notes(wb: Workbook) -> None:
+def _notes(wb: Workbook, schema: Schema) -> None:
     ws = wb.create_sheet("Notes")
+    sheet = overview_sheet_name(schema)
     lines = [
         "How to use this workbook",
-        "Each row on RARF Overview is one paper. Edit the 23 RARF columns as needed, then run `rarf sync-back` so your wording is stored as a human override and kept on the next export.",
+        f"Each row on {sheet} is one paper. Edit the {len(schema.fields)} form columns as needed, then run `rarf sync-back` so your wording is stored as a human override and kept on the next export.",
         "Statuses: present = the paper reports it; not_reported = it could apply but the paper is silent; not_applicable = the paper type makes the field meaningless; unclear = the extractor could not decide.",
         "Framing.primary_basis is IV-led, DV-led, theory-led, or mixed/other. Style is theoretical vs phenomenological.",
         "Key argument cells keep an exact quotation plus academic, plain-language, and causal rephrasings. Check Evidence & QA for quote-match failures before trusting a quotation.",
         "Key variables are conceptual (nominal definitions). Measures are operationalizations. The Variable-Measure Map links them by construct_id.",
         "SQLite at data/rarf.sqlite is the source of truth. This workbook is the editable overview.",
-        "LLM sessions use Cursor Grok 4.6 High. Cache keys combine PDF hash with schema, prompt, and model versions.",
+        "Cache keys combine the PDF hash with schema, prompt, and model versions, so re-runs are incremental.",
     ]
     ws["A1"] = lines[0]
     ws["A1"].font = Font(name="Arial", size=14, bold=True)

@@ -1,5 +1,12 @@
-project_root_relative: true
-default_folder: "C:/Users/HuGoL/OneDrive - HKUST (Guangzhou)/PhD/Zotero/Corporate Governance/Internal"
+# Folder the desk opens first. Leave empty to start at the drive list;
+# set it to your own PDF/Zotero library folder.
+default_folder: ""
+
+# Review-form schema: which dimensions to extract, with prompts, sessions,
+# and group styling. Point this at your own YAML to use a different form.
+# See config/examples/quick_review.yaml for a minimal template.
+schema_path: config/rarf_schema.yaml
+
 sqlite_path: data/rarf.sqlite
 output_path: output/RARF_Overview.xlsx
 work_dir: data/work

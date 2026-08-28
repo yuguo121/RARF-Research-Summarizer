@@ -64,11 +64,32 @@ def load_settings(project_root: Path | None = None) -> dict:
     return data
 
 
+def save_settings(project_root: Path, updates: dict) -> Path:
+    """Shallow-merge updates into config/settings.yaml, preserving unrelated keys."""
+    path = Path(project_root) / "config" / "settings.yaml"
+    data = load_yaml(path) if path.is_file() else {}
+    for key, value in updates.items():
+        if value is None:
+            data.pop(key, None)
+        elif isinstance(value, dict) and isinstance(data.get(key), dict):
+            data[key].update(value)
+        else:
+            data[key] = value
+    path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return path
+
+
 def resolve_under_root(root: Path, value: str | Path) -> Path:
     path = Path(value)
     if path.is_absolute():
         return path
     return (root / path).resolve()
+
+
+def configured_schema_path(project_root: Path) -> Path:
+    """Schema YAML configured in settings.yaml (schema_path), falling back to the bundled RARF form."""
+    settings = load_settings(project_root)
+    return resolve_under_root(Path(project_root), settings.get("schema_path") or "config/rarf_schema.yaml")
 
 
 def provider_slug(base_url: str) -> str:

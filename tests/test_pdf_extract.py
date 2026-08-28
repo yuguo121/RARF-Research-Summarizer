@@ -7,10 +7,9 @@ import pytest
 
 from rarf_summarizer.pdf_pipeline import extract_paper
 
-KRAUSE = Path(
-    r"C:\Users\HuGoL\OneDrive - HKUST (Guangzhou)\PhD\Zotero\Corporate Governance\Internal\Duality"
-    r"\Krause, Semadeni, Cannella_2014_CEO Duality A Review and Research Agenda.pdf"
-)
+# Point RARF_EXEMPLAR_PDF at a real review-article PDF to enable the extraction test.
+_exemplar = os.environ.get("RARF_EXEMPLAR_PDF", "")
+KRAUSE = Path(_exemplar) if _exemplar else Path("__missing__")
 
 
 @pytest.mark.skipif(not KRAUSE.exists(), reason="exemplar PDF is not available")
