@@ -47,11 +47,12 @@ class Pipeline:
     def __init__(self, project_root: Path | None = None, backend=None):
         self.settings = load_settings(project_root)
         self.root = Path(self.settings["_project_root"])
-        self.schema = load_schema(self.root / "config" / "rarf_schema.yaml")
+        self.schema = load_schema(resolve_under_root(self.root, self.settings.get("schema_path") or "config/rarf_schema.yaml"))
         self.store = Store(resolve_under_root(self.root, self.settings["sqlite_path"]))
         self.output_path = resolve_under_root(self.root, self.settings["output_path"])
         self.work_dir = resolve_under_root(self.root, self.settings.get("work_dir", "data/work"))
-        self.default_folder = Path(self.settings["default_folder"])
+        raw_default = str(self.settings.get("default_folder") or "").strip()
+        self.default_folder = Path(raw_default).expanduser() if raw_default else self.root
         self.backend = backend
         self.packet_budget = int(self.settings.get("packet_char_budget") or 0)
         self.packet_warn_chars = int(self.settings.get("packet_warn_chars") or 0)

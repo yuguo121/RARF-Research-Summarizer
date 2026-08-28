@@ -1,0 +1,84 @@
+# Minimal example review form — copy this file, edit the fields, then point
+# `schema_path` in config/settings.yaml at your copy.
+#
+# Every field needs: id, label, group, session, value_kind, instruction.
+# value_kind: text works out of the box. The enriched kinds (framing,
+# arguments, constructs, measures) add structured validation and extra
+# Excel sheets; see config/rarf_schema.yaml for examples.
+#
+# Sessions group fields into separate LLM passes over different PDF sections.
+# `section_keys` pick which extracted sections the pass reads; unknown keys
+# fall back to the whole packet.
+
+schema_version: "1.0.0"
+prompt_version: "1.0.0"
+name: "Quick Review"
+name_short: "QR"
+
+groups:
+  - id: overview
+    label: Overview
+    color: "#1F4E79"
+    soft: "#D6EAF8"
+  - id: takeaways
+    label: Takeaways
+    color: "#196F3D"
+    soft: "#D5F5E3"
+
+sessions:
+  main:
+    description: Whole paper, front to back.
+    section_keys:
+      - abstract
+      - introduction
+      - theory
+      - methods
+      - results
+      - discussion
+      - conclusion
+
+fields:
+  - id: citation
+    label: Citation
+    group: overview
+    session: main
+    value_kind: text
+    instruction: >
+      Produce a complete academic citation (authors, year, title, journal,
+      volume, pages, DOI if available).
+
+  - id: summary
+    label: One-paragraph summary
+    group: overview
+    session: main
+    value_kind: text
+    instruction: >
+      Summarize the paper in one paragraph: question, approach, evidence,
+      and conclusion. Use the paper's own terms.
+
+  - id: methods_brief
+    label: Methods in one sentence
+    group: overview
+    session: main
+    value_kind: text
+    instruction: >
+      One sentence on the research design and data. Use not_applicable for
+      non-empirical papers.
+
+  - id: strength
+    label: Biggest strength
+    group: takeaways
+    session: main
+    value_kind: text
+    instruction: >
+      The single strongest aspect of the paper, grounded in the text.
+
+  - id: weakness
+    label: Biggest weakness
+    group: takeaways
+    session: main
+    value_kind: text
+    instruction: >
+      The single most important limitation, whether or not the authors
+      acknowledge it. Use not_reported rather than inventing criticism when
+      nothing stands out.

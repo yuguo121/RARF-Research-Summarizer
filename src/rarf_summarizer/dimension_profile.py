@@ -4,6 +4,7 @@ from pathlib import Path
 
 import yaml
 
+from rarf_summarizer.paths import configured_schema_path
 from rarf_summarizer.schema import Schema, apply_profile, load_schema
 
 PARALLEL_CAPS = (5, 10, 50, 100)
@@ -33,7 +34,7 @@ def profile_path(project_root: Path) -> Path:
 def load_profile(project_root: Path) -> dict:
     path = profile_path(project_root)
     if not path.is_file():
-        schema = load_schema(Path(project_root) / "config" / "rarf_schema.yaml")
+        schema = load_schema(configured_schema_path(Path(project_root)))
         return {
             "enabled": list(schema.field_ids),
             "instructions": {},

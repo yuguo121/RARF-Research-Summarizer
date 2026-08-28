@@ -13,6 +13,7 @@ data/*.sqlite-journal
 data/*.sqlite-shm
 data/*.sqlite-wal
 data/desk.log
+data/dimension_profile.yaml
 data/work/
 output/*.xlsx
 output/~$*

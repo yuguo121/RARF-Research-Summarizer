@@ -4,18 +4,23 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from rarf_summarizer.excel_export import overview_sheet_name
 from rarf_summarizer.schema import Schema
 from rarf_summarizer.storage import Store
 
 
 def sync_back(store: Store, schema: Schema, path: Path) -> int:
     wb = load_workbook(path, data_only=True)
-    ws = wb["RARF Overview"]
+    sheet = overview_sheet_name(schema)
+    if sheet not in wb.sheetnames:
+        # Backward compatibility with workbooks exported before schema-driven naming.
+        sheet = next((name for name in wb.sheetnames if name.endswith("Overview")), wb.sheetnames[0])
+    ws = wb[sheet]
     headers = [ws.cell(2, col).value for col in range(1, ws.max_column + 1)]
     try:
         paper_col = headers.index("Paper ID") + 1
     except ValueError as exc:
-        raise ValueError("RARF Overview is missing a Paper ID column") from exc
+        raise ValueError(f"{sheet} is missing a Paper ID column") from exc
     label_to_id = {spec.label: spec.id for spec in schema.fields}
     field_cols = []
     for col, header in enumerate(headers, start=1):

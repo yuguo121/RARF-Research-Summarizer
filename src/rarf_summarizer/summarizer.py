@@ -61,63 +61,68 @@ def _field_block(schema: Schema, session: str) -> str:
     return "\n".join(lines)
 
 
-def theory_prompt(schema: Schema, packet: str, paper: ExtractedPaper) -> str:
-    extras: list[str] = []
-    if schema.has("framing"):
-        extras.append(
-            """
-Framing.value MUST be:
+VALUE_KIND_CONTRACTS = {
+    "framing": """
+{field_id}.value MUST be:
 {"primary_basis": "IV-led"|"DV-led"|"theory-led"|"mixed/other",
  "secondary_style": "theoretical"|"phenomenological"|"mixed"|"not_reported",
  "rationale": "<short rationale>"}
 Decide whether the paper is organized around an IV, a DV, or theory per se.
-"""
-        )
-    if schema.has("key_argument"):
-        extras.append(
-            """
-key_argument.value MUST be a list of argument objects:
+""",
+    "arguments": """
+{field_id}.value MUST be a list of argument objects:
 {"quote": "<exact words from the packet>", "page": <int>,
  "academic_paraphrase": "...", "plain_language": "...",
  "causal_formulation": "..." or null}
 There may be several arguments. Each needs an exact quote plus the rephrasings.
-"""
-        )
-    if schema.has("key_variables"):
-        extras.append(
-            """
-key_variables.value MUST be a list:
+""",
+    "constructs": """
+{field_id}.value MUST be a list:
 {"class": "DV"|"IV"|"moderator"|"mediator", "name": "...", "nominal_definition": "..."}
 Conceptual definitions only.
-"""
-        )
-    return _wrap_prompt("theory", schema, packet, paper, "\n".join(extras))
-
-
-def method_prompt(schema: Schema, packet: str, paper: ExtractedPaper) -> str:
-    extra = ""
-    if schema.has("measures"):
-        extra = """
-measures.value MUST be a list:
+""",
+    "measures": """
+{field_id}.value MUST be a list:
 {"class": "DV"|"IV"|"moderator"|"mediator"|"control",
  "name": "...", "linked_construct": "<conceptual name>",
  "operationalization": "...", "range": "...",
  "type": "continuous"|"binary"|"ordinal"|"cardinal"}
 Empirical operationalizations only. Do not repeat nominal definitions unless they are how the variable is measured.
-"""
-    return _wrap_prompt("method", schema, packet, paper, extra)
+""",
+}
 
 
-def reconcile_prompt(schema: Schema, theory: dict, method: dict, qa_notes: list[str]) -> str:
+def session_prompt(schema: Schema, session: str, packet: str, paper: ExtractedPaper) -> str:
+    extras = []
+    for spec in schema.fields_for_session(session):
+        contract = VALUE_KIND_CONTRACTS.get(spec.value_kind)
+        if contract:
+            extras.append(contract.replace("{field_id}", spec.id))
+    return _wrap_prompt(session, schema, packet, paper, "\n".join(extras))
+
+
+def theory_prompt(schema: Schema, packet: str, paper: ExtractedPaper) -> str:
+    return session_prompt(schema, "theory", packet, paper)
+
+
+def method_prompt(schema: Schema, packet: str, paper: ExtractedPaper) -> str:
+    return session_prompt(schema, "method", packet, paper)
+
+
+def reconcile_prompt(schema: Schema, session_payloads: dict[str, dict], qa_notes: list[str]) -> str:
+    blocks = []
+    for name, payload in session_payloads.items():
+        blocks.append(f"{name.title()} JSON:\n{json.dumps(payload, ensure_ascii=False)}")
+    sections = "\n\n".join(blocks)
     return f"""
-You are reconciling two structured RARF extractions of the same paper.
+You are reconciling structured extractions of the same paper, produced for the form "{schema.name}".
 Merge them into one JSON object covering ALL of these field ids:
 {', '.join(schema.field_ids)}
 
 Rules:
 - Prefer exact quotes already verified. If a quote is flagged, replace it with an exact packet substring or keep the field but add a warning.
 - Link measures to constructs by construct_id / linked_construct name.
-- Do not drop a present field because the other session omitted it.
+- Do not drop a present field because another session omitted it.
 - Keep framing.primary_basis as IV-led, DV-led, theory-led, or mixed/other.
 - Keep every key argument quote verbatim; retain academic, plain, and causal rephrasings.
 - Preserve not_applicable vs not_reported distinctions.
@@ -125,11 +130,7 @@ Rules:
 QA notes:
 {json.dumps(qa_notes, ensure_ascii=False, indent=2)}
 
-Theory JSON:
-{json.dumps(theory, ensure_ascii=False)}
-
-Method JSON:
-{json.dumps(method, ensure_ascii=False)}
+{sections}
 
 {JSON_CONTRACT}
 """
@@ -137,7 +138,7 @@ Method JSON:
 
 def repair_prompt(field_id: str, issue: str, envelope: dict, page_excerpts: str) -> str:
     return f"""
-Repair only this RARF field: {field_id}
+Repair only this review-form field: {field_id}
 Issue: {issue}
 Current JSON: {json.dumps(envelope, ensure_ascii=False)}
 
@@ -162,7 +163,7 @@ def _wrap_prompt(session: str, schema: Schema, packet: str, paper: ExtractedPape
     if paper.citation:
         meta.append(f"Citation (from {paper.meta_source or 'metadata'}): {paper.citation}")
     return f"""
-You are filling a Research Article Review Form (RARF) for one academic paper.
+You are filling a structured review form ({schema.name}) for one academic paper.
 Session: {session}
 {chr(10).join(meta)}
 
@@ -198,7 +199,7 @@ def cell_prompt(
         "Current values to replace:\n"
         + json.dumps(current_values, ensure_ascii=False, indent=2)
     )
-    session = schema.fields[0].session if schema.fields else "theory"
+    session = schema.fields[0].session if schema.fields else next(iter(schema.sessions), "default")
     return _wrap_prompt(session, schema, packet, paper, extra)
 
 
@@ -226,16 +227,35 @@ def envelopes_to_json(envelopes: dict[str, Envelope]) -> dict[str, Any]:
     return {key: value.model_dump() for key, value in envelopes.items()}
 
 
+def session_names(schema: Schema) -> list[str]:
+    """Sessions that own at least one field, in schema declaration order (reconcile excluded)."""
+    used = {spec.session for spec in schema.fields}
+    declared = [name for name in schema.sessions if name in used and name != "reconcile"]
+    declared += sorted(name for name in used if name not in declared)
+    return declared
+
+
+def session_section_keys(schema: Schema, session: str) -> tuple[str, ...]:
+    """PDF sections a session reads: from schema YAML, falling back to the classic split."""
+    config = schema.sessions.get(session) or {}
+    keys = tuple(config.get("section_keys") or ())
+    if keys:
+        return keys
+    return THEORY_SECTIONS if session == "theory" else METHOD_SECTIONS
+
+
 def merge_session_envelopes(
     schema: Schema,
-    theory: dict[str, Envelope],
-    method: dict[str, Envelope],
+    session_outputs: dict[str, dict[str, Envelope]],
 ) -> dict[str, Envelope]:
     merged: dict[str, Envelope] = {}
     for spec in schema.fields:
-        source = theory if spec.session == "theory" else method
-        fallback = method if spec.session == "theory" else theory
-        envelope = source.get(spec.id) or fallback.get(spec.id)
+        envelope = session_outputs.get(spec.session, {}).get(spec.id)
+        if envelope is None:
+            for output in session_outputs.values():
+                if spec.id in output:
+                    envelope = output[spec.id]
+                    break
         if envelope is None:
             merged[spec.id] = Envelope(status="not_reported")
         else:
@@ -268,60 +288,47 @@ class Summarizer:
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
     def _session_packet(self, extracted: ExtractedPaper, session: str) -> str:
-        keys = THEORY_SECTIONS if session == "theory" else METHOD_SECTIONS
-        packet = extracted.packet(keys)
+        packet = extracted.packet(session_section_keys(self.schema, session))
         if self.packet_warn_chars and len(packet) >= self.packet_warn_chars:
             print(f"warning: {session} packet is {len(packet)} characters")
         return packet
 
     def summarize_paper(self, paper_id: str, extracted: ExtractedPaper, force: bool = False) -> dict[str, Envelope]:
         if not self.schema.fields:
-            raise ValueError("no RARF dimensions selected")
+            raise ValueError("no review-form fields selected")
         model = self.backend.resolve_model()
         pages = extracted.page_map()
-        theory: dict[str, Envelope] = {}
-        method: dict[str, Envelope] = {}
+        outputs: dict[str, dict[str, Envelope]] = {}
         try:
-            if self.schema.fields_for_session("theory"):
-                theory_packet = self._session_packet(extracted, "theory")
-                theory = self._run_session(
+            for session in session_names(self.schema):
+                packet = self._session_packet(extracted, session)
+                outputs[session] = self._run_session(
                     paper_id,
-                    "theory",
-                    theory_prompt(self.schema, theory_packet, extracted),
+                    session,
+                    session_prompt(self.schema, session, packet, extracted),
                     extracted,
                     model,
                     force,
-                    session_fields="theory",
+                    session_fields=session,
                 )
-            if self.schema.fields_for_session("method"):
-                method_packet = self._session_packet(extracted, "method")
-                method = self._run_session(
-                    paper_id,
-                    "method",
-                    method_prompt(self.schema, method_packet, extracted),
-                    extracted,
-                    model,
-                    force,
-                    session_fields="method",
-                )
-            if theory and method:
+            if len(outputs) > 1:
                 try:
-                    reconciled = self._reconcile(paper_id, extracted, theory, method, pages, model, force)
+                    reconciled = self._reconcile(paper_id, extracted, outputs, pages, model, force)
                 except (AgentStartupError, AgentRunError, JsonExtractError) as exc:
-                    print(f"reconcile failed for {paper_id}; keeping theory/method merge ({exc})")
-                    reconciled = merge_session_envelopes(self.schema, theory, method)
+                    print(f"reconcile failed for {paper_id}; keeping session merge ({exc})")
+                    reconciled = merge_session_envelopes(self.schema, outputs)
                     note = f"reconcile failed: {exc}"
                     for envelope in reconciled.values():
                         envelope.warnings.append(note)
             else:
-                reconciled = merge_session_envelopes(self.schema, theory, method)
-            if self.schema.has("key_argument"):
+                reconciled = merge_session_envelopes(self.schema, outputs)
+            if any(spec.value_kind == "arguments" for spec in self.schema.fields):
                 reconciled = self._repair_if_needed(paper_id, extracted, reconciled, pages, model)
             self._apply_metadata(paper_id, extracted, reconciled)
             self._persist(paper_id, reconciled, pages)
             return reconciled
         except Exception:
-            self._persist_partial(paper_id, theory, method, pages)
+            self._persist_partial(paper_id, outputs, pages)
             raise
 
     def resummarize_fields(
@@ -334,13 +341,13 @@ class Summarizer:
     ) -> dict[str, Envelope]:
         wanted = [fid for fid in field_ids if fid in self.schema.field_ids]
         if not wanted:
-            raise ValueError("no matching RARF fields to resummarize")
+            raise ValueError("no matching review-form fields to resummarize")
         model = self.backend.resolve_model()
         pages = extracted.page_map()
         updated: dict[str, Envelope] = {}
-        by_session: dict[str, list[str]] = {"theory": [], "method": []}
+        by_session: dict[str, list[str]] = {}
         for field_id in wanted:
-            by_session[self.schema.field(field_id).session].append(field_id)
+            by_session.setdefault(self.schema.field(field_id).session, []).append(field_id)
         for session, ids in by_session.items():
             if not ids:
                 continue
@@ -370,8 +377,7 @@ class Summarizer:
         self,
         paper_id: str,
         extracted: ExtractedPaper,
-        theory: dict[str, Envelope],
-        method: dict[str, Envelope],
+        outputs: dict[str, dict[str, Envelope]],
         pages: dict[int, str],
         model: str,
         force: bool,
@@ -381,15 +387,14 @@ class Summarizer:
         if not force and self.store.cached_run(paper_id, "reconcile", key) and snapshot_path.exists():
             payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
             return normalize_session_payload(self.schema, payload, None)
-        qa_notes = self._quote_issues(theory, pages) + self._quote_issues(method, pages)
+        qa_notes = [note for output in outputs.values() for note in self._quote_issues(output, pages)]
         if self.skip_reconcile_if_clean and not _needs_llm_reconcile(qa_notes):
-            merged = merge_session_envelopes(self.schema, theory, method)
+            merged = merge_session_envelopes(self.schema, outputs)
             self._record_local_session(paper_id, "reconcile", key, model, envelopes_to_json(merged), snapshot_path)
             return merged
         merged_prompt = reconcile_prompt(
             self.schema,
-            envelopes_to_json(theory),
-            envelopes_to_json(method),
+            {name: envelopes_to_json(output) for name, output in outputs.items()},
             qa_notes,
         )
         return self._run_session(
@@ -474,10 +479,14 @@ class Summarizer:
             self.store.update_run(run_pk, status="error", finished_at=utc_now(), error=str(exc))
             raise
 
+    def _arguments_fields(self) -> list[str]:
+        return [spec.id for spec in self.schema.fields if spec.value_kind == "arguments"]
+
     def _quote_issues(self, envelopes: dict[str, Envelope], pages: dict[int, str]) -> list[str]:
         notes = []
+        argument_fields = set(self._arguments_fields())
         for field_id, envelope in envelopes.items():
-            if field_id == "key_argument":
+            if field_id in argument_fields:
                 for item in envelope.value or []:
                     quote = item.get("quote") if isinstance(item, dict) else ""
                     page = item.get("page") if isinstance(item, dict) else None
@@ -501,13 +510,26 @@ class Summarizer:
         model: str,
     ) -> dict[str, Envelope]:
         issues = self._quote_issues(envelopes, pages)
-        key_arg_mismatch = [note for note in issues if note.startswith("key_argument:")]
-        if not key_arg_mismatch or "key_argument" not in envelopes:
-            return envelopes
-        field_id = "key_argument"
+        for field_id in self._arguments_fields():
+            key_arg_mismatch = [note for note in issues if note.startswith(f"{field_id}:")]
+            if not key_arg_mismatch or field_id not in envelopes:
+                continue
+            envelopes = self._repair_field(paper_id, extracted, envelopes, pages, model, field_id, key_arg_mismatch)
+        return envelopes
+
+    def _repair_field(
+        self,
+        paper_id: str,
+        extracted: ExtractedPaper,
+        envelopes: dict[str, Envelope],
+        pages: dict[int, str],
+        model: str,
+        field_id: str,
+        mismatch_notes: list[str],
+    ) -> dict[str, Envelope]:
         envelope = envelopes[field_id]
         excerpts = _nearby_pages(pages, envelope)
-        prompt = repair_prompt(field_id, "; ".join(key_arg_mismatch), envelope.model_dump(), excerpts)
+        prompt = repair_prompt(field_id, "; ".join(mismatch_notes), envelope.model_dump(), excerpts)
         try:
             result = self.backend.run(prompt, session=f"repair:{field_id}", work_dir=str(self.work_dir))
             payload = extract_json_object(result.text)
@@ -570,13 +592,12 @@ class Summarizer:
     def _persist_partial(
         self,
         paper_id: str,
-        theory: dict[str, Envelope],
-        method: dict[str, Envelope],
+        outputs: dict[str, dict[str, Envelope]],
         pages: dict[int, str],
     ) -> None:
-        if not theory and not method:
+        if not any(outputs.values()):
             return
-        merged = merge_session_envelopes(self.schema, theory, method)
+        merged = merge_session_envelopes(self.schema, outputs)
         filled = [item for item in merged.values() if item.status != "not_reported" or item.value]
         if not filled:
             return
@@ -600,9 +621,14 @@ class Summarizer:
         measures: list[dict[str, Any]] = []
         target_ids = list(only_ids) if only_ids is not None else list(self.schema.field_ids)
         target_set = set(target_ids)
+        constructs_ids = [spec.id for spec in self.schema.fields if spec.value_kind == "constructs"]
+        measures_ids = [spec.id for spec in self.schema.fields if spec.value_kind == "measures"]
+        arguments_ids = [spec.id for spec in self.schema.fields if spec.value_kind == "arguments"]
 
-        if "key_variables" in envelopes and "key_variables" in target_set:
-            for item in envelopes["key_variables"].value or []:
+        for constructs_field in constructs_ids:
+            if constructs_field not in envelopes or constructs_field not in target_set:
+                continue
+            for item in envelopes[constructs_field].value or []:
                 if not isinstance(item, dict):
                     continue
                 cid = item.get("construct_id") or slug_id(item.get("name") or "construct")
@@ -623,8 +649,10 @@ class Summarizer:
                 for row in self.store.list_constructs()
                 if row.get("paper_id") == paper_id and row.get("name")
             }
-        if "measures" in envelopes and "measures" in target_set:
-            for item in envelopes["measures"].value or []:
+        for measures_field in measures_ids:
+            if measures_field not in envelopes or measures_field not in target_set:
+                continue
+            for item in envelopes[measures_field].value or []:
                 if not isinstance(item, dict):
                     continue
                 linked = item.get("linked_construct") or item.get("name") or ""
@@ -664,7 +692,7 @@ class Summarizer:
                 },
                 clear_human=clear_human,
             )
-            if spec.id == "key_argument":
+            if spec.id in arguments_ids:
                 for item in envelope.value or []:
                     if not isinstance(item, dict):
                         continue
@@ -709,9 +737,9 @@ class Summarizer:
                 warning_rows.append((spec.id, warning))
 
         self.store.replace_evidence(paper_id, evidence_rows, field_ids=target_ids)
-        if "key_variables" in target_set and self.schema.has("key_variables") and "key_variables" in envelopes:
+        if any(fid in target_set and fid in envelopes for fid in constructs_ids):
             self.store.replace_constructs(paper_id, constructs)
-        if "measures" in target_set and self.schema.has("measures") and "measures" in envelopes:
+        if any(fid in target_set and fid in envelopes for fid in measures_ids):
             self.store.replace_measures(paper_id, measures)
         self.store.replace_warnings(paper_id, warning_rows, field_ids=target_ids)
 
