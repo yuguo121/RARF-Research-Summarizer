@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import io
 import json
 import time
+import urllib.error
 from types import SimpleNamespace
 
 import pytest
 
 from rarf_summarizer.cursor_runtime import (
+    AgentRunError,
     AgentStartupError,
     CursorSdkBackend,
     ExternalChatBackend,
@@ -242,3 +245,77 @@ def test_external_backend_salvages_json(monkeypatch, tmp_path):
     result = backend.run("prompt", session="theory", work_dir=str(tmp_path))
     assert result.status == "finished"
     assert "citation" in result.text
+
+
+class _DummyResp:
+    def __init__(self, payload):
+        self._payload = json.dumps(payload).encode("utf-8")
+
+    def read(self):
+        return self._payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def _ok_payload():
+    return {"id": "chatcmpl-1", "choices": [{"message": {"content": '{"citation": {"status": "present"}}'}}]}
+
+
+def test_external_backend_retries_on_429(monkeypatch, tmp_path):
+    monkeypatch.setenv("EXTERNAL_API_KEY", "ext-key")
+    backend = make_backend(_external_settings(), name="external")
+    calls = {"n": 0}
+
+    def fake_urlopen(request, timeout=0):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise urllib.error.HTTPError(
+                request.full_url, 429, "Too Many Requests", hdrs=None, fp=io.BytesIO(b'{"error":"rate"}')
+            )
+        return _DummyResp(_ok_payload())
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    result = backend.run("prompt", session="theory", work_dir=str(tmp_path))
+    assert result.status == "finished"
+    assert calls["n"] == 2
+
+
+def test_external_backend_no_retry_on_400(monkeypatch, tmp_path):
+    monkeypatch.setenv("EXTERNAL_API_KEY", "ext-key")
+    backend = make_backend(_external_settings(), name="external")
+    calls = {"n": 0}
+
+    def fake_urlopen(request, timeout=0):
+        calls["n"] += 1
+        raise urllib.error.HTTPError(
+            request.full_url, 400, "Bad Request", hdrs=None, fp=io.BytesIO(b'{"error":"content filter"}')
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    with pytest.raises(AgentRunError, match="HTTP 400"):
+        backend.run("prompt", session="theory", work_dir=str(tmp_path))
+    assert calls["n"] == 1
+
+
+def test_external_backend_retries_network_timeout_then_fails_closed(monkeypatch, tmp_path):
+    monkeypatch.setenv("EXTERNAL_API_KEY", "ext-key")
+    settings = _external_settings()
+    settings["external"]["max_retries"] = 3
+    backend = make_backend(settings, name="external")
+    calls = {"n": 0}
+
+    def fake_urlopen(request, timeout=0):
+        calls["n"] += 1
+        raise TimeoutError("The read operation timed out")
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    with pytest.raises(AgentStartupError, match="timed out"):
+        backend.run("prompt", session="theory", work_dir=str(tmp_path))
+    assert calls["n"] == 3

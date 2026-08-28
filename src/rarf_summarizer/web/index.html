@@ -1135,7 +1135,7 @@
         name.textContent = p.label || p.id;
         const desc = document.createElement("div");
         desc.className = "mode-desc";
-        desc.textContent = p.id + (p.base_url ? " · " + String(p.base_url).replace(/^https?:\/\//, "") : "") + (p.has_key ? " · key ✓" : "");
+        desc.textContent = p.id + (p.base_url ? " · " + String(p.base_url).replace(/^https?:\/\//, "") : "") + (p.max_parallel ? " · ≤" + p.max_parallel + "并行" : "") + (p.has_key ? " · key ✓" : "");
         card.appendChild(name);
         card.appendChild(desc);
         card.onclick = () => setModalModel(p.id);
